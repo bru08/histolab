@@ -176,6 +176,35 @@ class Describe_RandomTiler(object):
         assert type(box_mask) == sparse._coo.core.COO
         np.testing.assert_array_almost_equal(box_mask.todense(), expected_box.todense())
 
+    @pytest.mark.parametrize(
+        "level, box_mask, expected_box_mask_lvl",
+        (
+            (
+                0,
+                SparseArrayMock.RANDOM_500X500_BOOL,
+                SparseArrayMock.RANDOM_500X500_BOOL,
+            ),  # TODO: use image with more than 1 level
+        ),
+    )
+    def it_knows_its_box_mask_lvl(
+        self, request, tmpdir, level, box_mask, expected_box_mask_lvl
+    ):
+        tmp_path_ = tmpdir.mkdir("myslide")
+        image = PILImageMock.DIMS_500X500_RGBA_COLOR_155_249_240
+        image.save(os.path.join(tmp_path_, "mywsi.png"), "PNG")
+        slide_path = os.path.join(tmp_path_, "mywsi.png")
+        slide = Slide(slide_path, "processed")
+        _box_mask = method_mock(request, RandomTiler, "box_mask")
+        _box_mask.return_value = box_mask
+        random_tiler = RandomTiler((128, 128), 10, level)
+
+        box_mask_lvl = random_tiler.box_mask_lvl(slide)
+
+        assert type(box_mask_lvl) == sparse._coo.core.COO
+        np.testing.assert_array_almost_equal(
+            box_mask_lvl.todense(), expected_box_mask_lvl.todense()
+        )
+
     # fixtures -------------------------------------------------------
 
     @pytest.fixture(
