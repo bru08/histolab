@@ -146,7 +146,7 @@ class Slide(object):
         return resize_mask(thumb_bbox_mask_sparse, self.dimensions)
 
     @lazyproperty
-    def tissue_mask(self) -> np.ndarray:
+    def tissue_mask(self, scale_factor: int = 32) -> Tuple[np.array, int]:
         """Return the binary mask of tissue region.
 
         Returns
@@ -157,9 +157,8 @@ class Slide(object):
             Scaling factor from level 0 to the extracted tissue mask size
 
         """
-        scale_factor = 32
         thumb, _ = self._resample(scale_factor=scale_factor)
-        filters = self._main_tissue_areas_mask_filters
+        filters = self._strict_tissue_mask_filters
         thumb_mask = filters(thumb)
         return thumb_mask, scale_factor
 
@@ -382,6 +381,27 @@ class Slide(object):
                 mof.BinaryDilation(),
                 mof.RemoveSmallHoles(),
                 mof.RemoveSmallObjects(),
+            ]
+        )
+        return filters
+
+    @lazyproperty
+    def _strict_tissue_mask_filters(self) -> imf.Compose:
+        """Return a filters composition to get a binary mask of the main tissue regions.
+
+        Returns
+        -------
+        imf.Compose
+            Filters composition
+        """
+        filters = imf.Compose(
+            [
+                imf.RgbToGrayscale(),
+                imf.OtsuThreshold(),
+                #mof.BinaryDilationRelative(),
+                mof.RemoveSmallObjectsRelative(),
+                mof.RemoveSmallHolesRelative(),
+
             ]
         )
         return filters

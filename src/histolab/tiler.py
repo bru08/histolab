@@ -505,31 +505,38 @@ class RestrictedRandomTiler:
         self.seed = seed
         self.prefix = prefix
         self.suffix = suffix
+        self.safe_mask = None
+        self.adaptation_factor = None
+        self.scaled_tile_size = None
+        self.safe_centers = None
+        self.extracted_centers_mask = []
+
 
 
     def extract(self, slide: Slide):
-    """Extract random tiles and save them to disk, following this filename pattern:
-    `{prefix}tile_{tiles_counter}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}-{y_br_wsi}{suffix}`
+        """Extract random tiles and save them to disk, following this filename pattern:
+        `{prefix}tile_{tiles_counter}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}-{y_br_wsi}{suffix}`
 
-    Parameters
-    ----------
-    slide : Slide
-        Slide from which to extract the tiles
-    """
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which to extract the tiles
+        """
 
-    np.random.seed(self.seed)
-    self.safe_mask, self.adaptation_factor  = self.refine_safe_mask(slide)
+        np.random.seed(self.seed)
+        self.safe_mask, self.adaptation_factor = self.refine_safe_mask(slide)
+        self.safe_centers = np.argwhere(self.safe_mask)
 
-    tiles_counter = 0
-    for tiles_counter in range(self.n_tiles):
-        tile_wsi_coords = self._random_tile_coordinates(slide)
-        tile = slide.extract_tile(tile_wsi_coords, self.level)
-        # naming
-        tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter)
-        tile.save(tile_filename)
-        print(f"\t Tile {tiles_counter} saved: {tile_filename}")
+        tiles_counter = 0
+        for tiles_counter in range(self.n_tiles):
+            tile_wsi_coords = self._random_tile_coordinates(slide)
+            tile = slide.extract_tile(tile_wsi_coords, self.level)
+            # naming
+            tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter)
+            tile.save(tile_filename)
+            print(f"\t Tile {tiles_counter} saved: {tile_filename}")
 
-    print(f"{tiles_counter+1} Random Tiles have been saved.")
+        print(f"{tiles_counter+1} Random Tiles have been saved.")
 
     def _random_tile_coordinates(self, slide: Slide) -> CoordinatePair:
         """Return 0-level Coordinates of a tile picked at random within tissue mask.
@@ -546,19 +553,22 @@ class RestrictedRandomTiler:
         """
         tile_w_lvl, tile_h_lvl = self.tile_size
 
-        xc = np.random.choice(np.where(self.safe_mask)[1])
-        yc = np.random.choice(np.where(self.safe_mask)[0])
+        center_id = np.random.choice(self.safe_centers.shape[0])
+        xc = self.safe_centers[center_id, 1]
+        yc = self.safe_centers[center_id, 0]
+        self.extracted_centers_mask.append([xc, yc])
 
         x_ul_lvl = xc * self.adaptation_factor - tile_w_lvl // 2
         y_ul_lvl = yc * self.adaptation_factor - tile_h_lvl // 2
         x_br_lvl = x_ul_lvl + tile_w_lvl
         y_br_lvl = y_ul_lvl + tile_h_lvl
 
-        tile_wsi_coords = scale_coordinates(
-            reference_coords=CoordinatePair(x_ul_lvl, y_ul_lvl, x_br_lvl, y_br_lvl),
-            reference_size=slide.level_dimensions(level=self.level),
-            target_size=slide.level_dimensions(level=0),
-        )
+        tile_wsi_coords = CoordinatePair(x_ul_lvl, y_ul_lvl, x_br_lvl, y_br_lvl)
+        #     scale_coordinates(
+        #     reference_coords=CoordinatePair(x_ul_lvl, y_ul_lvl, x_br_lvl, y_br_lvl),
+        #     reference_size=slide.level_dimensions(level=self.level),
+        #     target_size=slide.level_dimensions(level=0),
+        # )
 
         return tile_wsi_coords
 
@@ -572,20 +582,50 @@ class RestrictedRandomTiler:
         ------
         safe_mask: np.ndarray
         """
-        tissue_mask , scale_factor = slide.tissue_mask
+        tissue_mask, _ = slide.tissue_mask
         tile_w_lvl, tile_h_lvl = self.tile_size
         h_m, w_m = tissue_mask.shape
-        h_lvl, w_lvl = slide.level_dimensions[self.level]
+        w_lvl, h_lvl = slide.level_dimensions(self.level)
         
-        avg_adaptation_factor = np.mean(h_lvl/h_m, w_lvl/w_m)
-        tile_w_mask = np.ceil(tile_w_lvl/avg_adaptation_factor)
-        tile_h_mask = np.ceil(tile_h_lvl/avg_adaptation_factor)
+        avg_adapt_factor = .5 * (h_lvl / h_m + w_lvl / w_m)
+        tile_w_mask = np.ceil(tile_w_lvl / avg_adapt_factor).astype(np.int32)
+        tile_h_mask = np.ceil(tile_h_lvl / avg_adapt_factor).astype(np.int32)
+        self.scaled_tile_size = (tile_w_mask, tile_h_mask)
         s_elem = rectangle(tile_w_mask, tile_h_mask, dtype=np.bool)
 
         safe_mask = binary_erosion(tissue_mask, selem=s_elem)
 
-        return safe_mask, adaptation_factor
+        return safe_mask, np.ceil(avg_adapt_factor).astype(np.int32)
 
+    def _tile_filename(
+        self, tile_wsi_coords: CoordinatePair, tiles_counter: int) -> str:
+        """Return the tile filename according to its 0-level coordinates and a counter.
+
+        Parameters
+        ----------
+        tile_wsi_coords : CoordinatePair
+            0-level coordinates of the slide the tile has been extracted from.
+        tiles_counter : int
+            Counter of extracted tiles.
+
+        Returns
+        -------
+        str
+            Tile filename, according to the format
+            `{prefix}tile_{tiles_counter}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}"
+            "-{y_br_wsi}{suffix}`
+        """
+
+        x_ul_wsi, y_ul_wsi, x_br_wsi, y_br_wsi = tile_wsi_coords
+        tile_filename = (
+            f"{self.prefix}tile_{tiles_counter}_level{self.level}_{x_ul_wsi}-{y_ul_wsi}"
+            f"-{x_br_wsi}-{y_br_wsi}{self.suffix}"
+        )
+
+        return tile_filename
+    
+    def extracted_centers(self):
+        return np.array(self.extracted_centers_mask)
 
 
 
