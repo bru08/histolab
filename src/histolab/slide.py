@@ -81,6 +81,24 @@ class Slide(object):
         dimensions : tuple(width, height)
         """
         return self._wsi.dimensions
+    
+    @lazyproperty
+    def objective_power(self) -> int:
+        """Return the objective power at which the tissue has been scanned
+            if present in the slides properties.
+
+        Returns
+        -------
+        obj_power: int
+        """
+        try:
+            obj_power = self._wsi.properties[
+                openslide.PROPERTY_NAME_OBJECTIVE_POWER
+                ]
+        except KeyError:
+            raise Exception(f"Undefined objective power for slide {self.name}")
+        return obj_power
+
 
     def level_dimensions(self, level: int = 0) -> Tuple[int, int]:
         """Return the slide dimensions (w,h) at the specified level
