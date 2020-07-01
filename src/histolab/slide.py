@@ -95,6 +95,7 @@ class Slide(object):
             obj_power = self._wsi.properties[
                 openslide.PROPERTY_NAME_OBJECTIVE_POWER
                 ]
+            obj_power = int(obj_power)
         except KeyError:
             raise Exception(f"Undefined objective power for slide {self.name}")
         return obj_power

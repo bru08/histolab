@@ -3,6 +3,7 @@ from typing import Tuple
 
 import numpy as np
 import sparse
+from skimage.morphology import binary_erosion, rectangle
 
 from .slide import Slide
 from .tile import Tile
@@ -485,3 +486,111 @@ class RandomTiler(Tiler):
 
             if valid_tile_counter >= self.n_tiles:
                 break
+
+class RestrictedRandomTiler:
+
+    def __init__(
+        self,
+        tile_size: Tuple[int, int],
+        n_tiles: int,
+        level: int = 0,
+        seed: int = 7,
+        prefix: str = "",
+        suffix: str = ".png",
+    ):
+
+        self.tile_size = tile_size
+        self.n_tiles = n_tiles
+        self.level = level
+        self.seed = seed
+        self.prefix = prefix
+        self.suffix = suffix
+
+
+    def extract(self, slide: Slide):
+    """Extract random tiles and save them to disk, following this filename pattern:
+    `{prefix}tile_{tiles_counter}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}-{y_br_wsi}{suffix}`
+
+    Parameters
+    ----------
+    slide : Slide
+        Slide from which to extract the tiles
+    """
+
+    np.random.seed(self.seed)
+    self.safe_mask, self.adaptation_factor  = self.refine_safe_mask(slide)
+
+    tiles_counter = 0
+    for tiles_counter in range(self.n_tiles):
+        tile_wsi_coords = self._random_tile_coordinates(slide)
+        tile = slide.extract_tile(tile_wsi_coords, self.level)
+        # naming
+        tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter)
+        tile.save(tile_filename)
+        print(f"\t Tile {tiles_counter} saved: {tile_filename}")
+
+    print(f"{tiles_counter+1} Random Tiles have been saved.")
+
+    def _random_tile_coordinates(self, slide: Slide) -> CoordinatePair:
+        """Return 0-level Coordinates of a tile picked at random within tissue mask.
+
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which calculate the coordinates. Needed to calculate the box.
+
+        Returns
+        -------
+        CoordinatePair
+            Random tile Coordinates at level 0
+        """
+        tile_w_lvl, tile_h_lvl = self.tile_size
+
+        xc = np.random.choice(np.where(self.safe_mask)[1])
+        yc = np.random.choice(np.where(self.safe_mask)[0])
+
+        x_ul_lvl = xc * self.adaptation_factor - tile_w_lvl // 2
+        y_ul_lvl = yc * self.adaptation_factor - tile_h_lvl // 2
+        x_br_lvl = x_ul_lvl + tile_w_lvl
+        y_br_lvl = y_ul_lvl + tile_h_lvl
+
+        tile_wsi_coords = scale_coordinates(
+            reference_coords=CoordinatePair(x_ul_lvl, y_ul_lvl, x_br_lvl, y_br_lvl),
+            reference_size=slide.level_dimensions(level=self.level),
+            target_size=slide.level_dimensions(level=0),
+        )
+
+        return tile_wsi_coords
+
+    def refine_safe_mask(self, slide: Slide) -> np.ndarray:
+        """Refine mask to extract tile only from tissue region
+        Get mask size and target elvel size, adapt the desired tile size to the
+        rescaled quivalent in the mask, perform binary_erosion and return the
+        eroded tissue mask.
+
+        Return
+        ------
+        safe_mask: np.ndarray
+        """
+        tissue_mask , scale_factor = slide.tissue_mask
+        tile_w_lvl, tile_h_lvl = self.tile_size
+        h_m, w_m = tissue_mask.shape
+        h_lvl, w_lvl = slide.level_dimensions[self.level]
+        
+        avg_adaptation_factor = np.mean(h_lvl/h_m, w_lvl/w_m)
+        tile_w_mask = np.ceil(tile_w_lvl/avg_adaptation_factor)
+        tile_h_mask = np.ceil(tile_h_lvl/avg_adaptation_factor)
+        s_elem = rectangle(tile_w_mask, tile_h_mask, dtype=np.bool)
+
+        safe_mask = binary_erosion(tissue_mask, selem=s_elem)
+
+        return safe_mask, adaptation_factor
+
+
+
+
+
+
+
+
+
