@@ -126,6 +126,24 @@ class Slide(object):
         thumb_bbox_mask_sparse = sparse.COO(thumb_bbox_mask)
         return resize_mask(thumb_bbox_mask_sparse, self.dimensions)
 
+    @lazyproperty
+    def tissue_mask(self) -> np.ndarray:
+        """Return the binary mask of tissue region.
+
+        Returns
+        -------
+        mask: numpy.ndarray
+            Binary mask of the box containing the max area of tissue.
+        scale_factor: int
+            Scaling factor from level 0 to the extracted tissue mask size
+
+        """
+        scale_factor = 32
+        thumb, _ = self._resample(scale_factor=scale_factor)
+        filters = self._main_tissue_areas_mask_filters
+        thumb_mask = filters(thumb)
+        return thumb_mask, scale_factor
+
     def extract_tile(self, coords: CoordinatePair, level: int) -> Tile:
         """Extract a tile of the image at the selected level.
 
