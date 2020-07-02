@@ -498,7 +498,7 @@ class RestrictedRandomTiler:
         prefix: str = "",
         suffix: str = ".png",
         check_tissue: bool = True,
-        max_iter: None,
+        max_iter = None,
     ):
 
         self.tile_size = tile_size
