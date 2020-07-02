@@ -497,6 +497,8 @@ class RestrictedRandomTiler:
         seed: int = 7,
         prefix: str = "",
         suffix: str = ".png",
+        check_tissue: bool = True,
+        max_iter: None,
     ):
 
         self.tile_size = tile_size
@@ -510,6 +512,10 @@ class RestrictedRandomTiler:
         self.scaled_tile_size = None
         self.safe_centers = None
         self.extracted_centers_mask = []
+        self.max_iter = max_iter
+        self.check_tissue = check_tissue
+
+        if max_iter is None: self.max_iter = 2 * self.n_tiles
 
 
 
@@ -526,16 +532,13 @@ class RestrictedRandomTiler:
         np.random.seed(self.seed)
         self.safe_mask, self.adaptation_factor = self.refine_safe_mask(slide)
         self.safe_centers = np.argwhere(self.safe_mask)
+        random_tiles = self._random_tiles_generator(slide)
 
         tiles_counter = 0
-        for tiles_counter in range(self.n_tiles):
-            tile_wsi_coords = self._random_tile_coordinates(slide)
-            tile = slide.extract_tile(tile_wsi_coords, self.level)
-            # naming
+        for tiles_counter, (tile, tile_wsi_coords) in enumerate(random_tiles):
             tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter)
             tile.save(tile_filename)
             print(f"\t Tile {tiles_counter} saved: {tile_filename}")
-
         print(f"{tiles_counter+1} Random Tiles have been saved.")
 
     def _random_tile_coordinates(self, slide: Slide) -> CoordinatePair:
@@ -564,11 +567,6 @@ class RestrictedRandomTiler:
         y_br_lvl = y_ul_lvl + tile_h_lvl
 
         tile_wsi_coords = CoordinatePair(x_ul_lvl, y_ul_lvl, x_br_lvl, y_br_lvl)
-        #     scale_coordinates(
-        #     reference_coords=CoordinatePair(x_ul_lvl, y_ul_lvl, x_br_lvl, y_br_lvl),
-        #     reference_size=slide.level_dimensions(level=self.level),
-        #     target_size=slide.level_dimensions(level=0),
-        # )
 
         return tile_wsi_coords
 
@@ -626,6 +624,48 @@ class RestrictedRandomTiler:
     
     def extracted_centers(self):
         return np.array(self.extracted_centers_mask)
+
+    def _random_tiles_generator(self, slide: Slide) -> (Tile, CoordinatePair):
+        """Generate Random Tiles within a slide box.
+
+        Stops if:
+        * the number of extracted tiles is equal to ``n_tiles`` OR
+        * the maximum number of iterations ``max_iter`` is reached
+
+        Parameters
+        ----------
+        slide : Slide
+            The Whole Slide Image from which to extract the tiles.
+
+        Yields
+        ------
+        tile : Tile
+            The extracted Tile
+        coords : CoordinatePair
+            The level-0 coordinates of the extracted tile
+        """
+
+        iteration = valid_tile_counter = 0
+
+        while True:
+
+            tile_wsi_coords = self._random_tile_coordinates(slide)
+            try:
+                tile = slide.extract_tile(tile_wsi_coords, self.level)
+            except ValueError:
+                iteration -= 1
+                continue
+
+            if not self.check_tissue or tile.has_enough_tissue():
+                yield tile, tile_wsi_coords
+                valid_tile_counter += 1
+            iteration += 1
+
+            if self.max_iter and iteration >= self.max_iter:
+                break
+
+            if valid_tile_counter >= self.n_tiles:
+                break
 
 
 

@@ -398,10 +398,8 @@ class Slide(object):
             [
                 imf.RgbToGrayscale(),
                 imf.OtsuThreshold(),
-                #mof.BinaryDilationRelative(),
                 mof.RemoveSmallObjectsRelative(),
                 mof.RemoveSmallHolesRelative(),
-
             ]
         )
         return filters
