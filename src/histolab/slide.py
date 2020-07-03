@@ -157,9 +157,9 @@ class Slide(object):
             Scaling factor from level 0 to the extracted tissue mask size
 
         """
-        thumb, _ = self._resample(scale_factor=scale_factor)
-        filters = self._strict_tissue_mask_filters
-        thumb_mask = filters(thumb)
+        thumb, thumb_arr = self._resample(scale_factor=scale_factor)
+        filters_fg = self._strict_fg_mask_filters
+        thumb_mask = filters_fg(thumb)
         return thumb_mask, scale_factor
 
     def extract_tile(self, coords: CoordinatePair, level: int) -> Tile:
@@ -386,8 +386,8 @@ class Slide(object):
         return filters
 
     @lazyproperty
-    def _strict_tissue_mask_filters(self) -> imf.Compose:
-        """Return a filters composition to get a binary mask of the main tissue regions.
+    def _strict_fg_mask_filters(self) -> imf.Compose:
+        """Return a filters composition to get a binary mask for the foreground
 
         Returns
         -------
