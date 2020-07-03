@@ -498,7 +498,8 @@ class RestrictedRandomTiler:
         prefix: str = "",
         suffix: str = ".png",
         check_tissue: bool = True,
-        max_iter = None,
+        check_artifacts: bool = True,
+        max_iter=None,
     ):
 
         self.tile_size = tile_size
@@ -514,6 +515,7 @@ class RestrictedRandomTiler:
         self.extracted_centers_mask = []
         self.max_iter = max_iter
         self.check_tissue = check_tissue
+        self.check_artifacts = check_artifacts
 
         if max_iter is None: self.max_iter = 2 * self.n_tiles
 
@@ -530,7 +532,11 @@ class RestrictedRandomTiler:
         """
 
         np.random.seed(self.seed)
-        self.safe_mask, self.adaptation_factor = self.refine_safe_mask(slide)
+
+        self.safe_mask, self.adaptation_factor = self.refine_safe_mask(
+            slide, self.check_artifacts)
+
+
         self.safe_centers = np.argwhere(self.safe_mask)
         random_tiles = self._random_tiles_generator(slide)
 
@@ -570,7 +576,7 @@ class RestrictedRandomTiler:
 
         return tile_wsi_coords
 
-    def refine_safe_mask(self, slide: Slide) -> np.ndarray:
+    def refine_safe_mask(self, slide: Slide, check_art: bool) -> np.ndarray:
         """Refine mask to extract tile only from tissue region
         Get mask size and target elvel size, adapt the desired tile size to the
         rescaled quivalent in the mask, perform binary_erosion and return the
@@ -581,6 +587,11 @@ class RestrictedRandomTiler:
         safe_mask: np.ndarray
         """
         tissue_mask, _ = slide.tissue_mask
+        if check_art:
+            self.art_filter = HSDCFilter()
+            art_mask = self.art_filter(slide._resample()[0])
+            tissue_mask = (tissue_mask) & (art_mask)
+
         tile_w_lvl, tile_h_lvl = self.tile_size
         h_m, w_m = tissue_mask.shape
         w_lvl, h_lvl = slide.level_dimensions(self.level)
