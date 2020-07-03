@@ -20,7 +20,14 @@ from typing import Any, List, Union
 
 import numpy as np
 import PIL
-
+from sklearn import cluster
+import hdbscan
+import skimage
+import matplotlib.pyplot as plt
+from .morphological_filters  import (
+    RemoveSmallObjectsRelative,
+    RemoveSmallHolesRelative,
+    )
 from .. import util as U
 from . import image_filters_functional as F
 
@@ -958,9 +965,9 @@ class HSDCFilter:
     def refine_mask(mask):
         msk = np.copy(mask)
         
-        filters = imf.Compose([
-            mof.RemoveSmallHolesRelative(),
-            mof.RemoveSmallObjectsRelative(),
+        filters = Compose([
+            RemoveSmallHolesRelative(),
+            RemoveSmallObjectsRelative(),
         ])
 
         return filters(msk)
@@ -968,7 +975,7 @@ class HSDCFilter:
     @staticmethod
     def mask_reconstruction(image, ds_mask):
         return skimage.transform.resize(
-            ds_mask, image.shape[:2], anti_aliasing=False)
+            ds_mask, (image.size[1],image.size[0]), anti_aliasing=False)
     
 
     def extract_tissue(self, image: PIL.Image.Image) -> np.array:
@@ -989,17 +996,15 @@ class HSDCFilter:
             points that are ok
 
         """
-        fg_mask = bg_segmentation_mask(image)
-        image = np.array(image)
-        hsv_img = np.array(image.convert("HSV"))
+        fg_mask = self.bg_segmentation_mask(image)
+        hsv_img = skimage.img_as_float(np.array(image.convert("HSV")))
+        image = skimage.img_as_float(np.array(image))
         hsv_pix = hsv_img[fg_mask, :]
         self.hs_colors_ = image[fg_mask, :]
-        self.hs_ = hsv_pix[:,:2]
+        self.hs_ = hsv_pix[:, :2]
 
         if self.clu_method == "hdbscan":
-            self.clusterer = hdbscan.HDBSCAN(
-                allow_single_cluster=True, **kwargs
-                )
+            self.clusterer = hdbscan.HDBSCAN(allow_single_cluster=True)
         elif self.clu_method == "dbscan":
             self.clusterer = cluster.DBSCAN(eps=0.005, min_samples=10)
         else:
@@ -1027,12 +1032,12 @@ class HSDCFilter:
     
     @staticmethod
     def bg_segmentation_mask(image: PIL.Image.Image) -> np.array:
-        filters = imf.Compose(
+        filters = Compose(
             [
-                imf.RgbToGrayscale(),
-                imf.OtsuThreshold(),
-                mof.RemoveSmallObjectsRelative(),
-                mof.RemoveSmallHolesRelative(),
+                RgbToGrayscale(),
+                OtsuThreshold(),
+                RemoveSmallObjectsRelative(),
+                RemoveSmallHolesRelative(),
             ]
         )
         return filters(image)
@@ -1085,7 +1090,7 @@ class HSDCFilter:
         if ax is None: plt.show()
 
     def __repr__(self) -> str:
-        name = f"{}\nClustering method: {}\nMax image size: {}".format(
+        name = "{}\nClustering method: {}\nMax image size: {}".format(
             self.__class__.__name__, self.clu_method, self.max_low_side
         )
         return name
