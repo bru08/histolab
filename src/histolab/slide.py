@@ -99,7 +99,26 @@ class Slide(object):
         except KeyError:
             raise Exception(f"Undefined objective power for slide {self.name}")
         return obj_power
+    
+    def level_scale_factor(self, level: int = 0) -> float:
+        """Return the slide downsampling factor at the specified level
 
+        Parameters
+        ---------
+        level : int
+            The level which ddownsampling factor is requested, default is 0
+
+        Returns
+        -------
+        dimensions : tuple (width, height)
+        """
+        try:
+            return self._wsi.level_downsamples[level]
+        except IndexError:
+            raise ValueError(
+                f"Level {level} not available. Number of available levels: "
+                f"{len(self._wsi.level_downsamples)}"
+            )
 
     def level_dimensions(self, level: int = 0) -> Tuple[int, int]:
         """Return the slide dimensions (w,h) at the specified level
@@ -200,6 +219,42 @@ class Slide(object):
         )
         tile = Tile(image, coords, level)
         return tile
+
+    def _extract_tile(self, coords: CoordinatePair, level: int) -> Tile:
+        """Extract a tile of the image at the selected level.
+
+        Parameters
+        ----------
+        coords : CoordinatePair
+            Coordinates from which to extract the tile.
+        level : int
+            Level from which to extract the tile.
+
+        Returns
+        -------
+        tile : Tile
+            Image containing the selected tile.
+        """
+        if not self._are_valid_coords(coords):
+            # OpenSlide doesn't complain if the coordinates for extraction are wrong,
+            # but it returns an odd image.
+            raise ValueError(
+                f"Extraction Coordinates {coords} not valid for slide with dimensions "
+                f"{self.dimensions}"
+            )
+
+
+        h_l = coords.y_br - coords.y_ul
+        w_l = coords.x_br - coords.x_ul
+
+        image = self._wsi.read_region(
+            location=(coords.x_ul, coords.y_ul),
+            level=level,
+            size=(w_l, h_l)
+        )
+        tile = Tile(image, coords, level)
+        return tile
+
 
     @lazyproperty
     def name(self) -> str:
