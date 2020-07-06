@@ -3,7 +3,7 @@ from typing import Tuple
 
 import numpy as np
 import sparse
-from skimage.morphology import binary_erosion, rectangle
+from scipy.ndimage.morphology import binary_erosion
 
 from .slide import Slide
 from .tile import Tile
@@ -15,6 +15,8 @@ from .util import (
     resize_mask,
     scale_coordinates,
 )
+from .filters import image_filters as imf
+from .filters import morphological_filters as mof
 
 try:
     from typing import Protocol, runtime_checkable
@@ -516,6 +518,7 @@ class RestrictedRandomTiler:
         self.max_iter = max_iter
         self.check_tissue = check_tissue
         self.check_artifacts = check_artifacts
+        self.art_filter = imf.HSDCFilter()
 
         if max_iter is None: self.max_iter = 2 * self.n_tiles
 
@@ -533,10 +536,9 @@ class RestrictedRandomTiler:
 
         np.random.seed(self.seed)
 
-        self.safe_mask, self.adaptation_factor = self.refine_safe_mask(
-            slide, self.check_artifacts)
+        self.safe_mask, scalef = self.refine_safe_mask(slide, self.check_artifacts)
 
-
+        self.adaptation_factor = scalef
         self.safe_centers = np.argwhere(self.safe_mask)
         random_tiles = self._random_tiles_generator(slide)
 
@@ -567,8 +569,8 @@ class RestrictedRandomTiler:
         yc = self.safe_centers[center_id, 0]
         self.extracted_centers_mask.append([xc, yc])
 
-        x_ul_lvl = xc * self.adaptation_factor - tile_w_lvl // 2
-        y_ul_lvl = yc * self.adaptation_factor - tile_h_lvl // 2
+        x_ul_lvl = int(xc * self.adaptation_factor) - tile_w_lvl // 2
+        y_ul_lvl = int(yc * self.adaptation_factor) - tile_h_lvl // 2
         x_br_lvl = x_ul_lvl + tile_w_lvl
         y_br_lvl = y_ul_lvl + tile_h_lvl
 
@@ -586,10 +588,10 @@ class RestrictedRandomTiler:
         ------
         safe_mask: np.ndarray
         """
-        tissue_mask, _ = slide.tissue_mask
+        tissue_mask, scalef = slide.tissue_mask
         if check_art:
-            self.art_filter = HSDCFilter()
             art_mask = self.art_filter(slide._resample()[0])
+            assert tissue_mask.shape == art_mask.shape
             tissue_mask = (tissue_mask) & (art_mask)
 
         tile_w_lvl, tile_h_lvl = self.tile_size
@@ -597,14 +599,14 @@ class RestrictedRandomTiler:
         w_lvl, h_lvl = slide.level_dimensions(self.level)
         
         avg_adapt_factor = .5 * (h_lvl / h_m + w_lvl / w_m)
+        assert np.abs(h_lvl / h_m - w_lvl / w_m) < 0.01
         tile_w_mask = np.ceil(tile_w_lvl / avg_adapt_factor).astype(np.int32)
         tile_h_mask = np.ceil(tile_h_lvl / avg_adapt_factor).astype(np.int32)
         self.scaled_tile_size = (tile_w_mask, tile_h_mask)
-        s_elem = rectangle(tile_w_mask, tile_h_mask, dtype=np.bool)
+        s_elem = np.ones((tile_h_mask, tile_w_mask), dtype=np.bool)
+        safe_mask = binary_erosion(tissue_mask, structure=s_elem)
 
-        safe_mask = binary_erosion(tissue_mask, selem=s_elem)
-
-        return safe_mask, np.ceil(avg_adapt_factor).astype(np.int32)
+        return safe_mask, scalef
 
     def _tile_filename(
         self, tile_wsi_coords: CoordinatePair, tiles_counter: int) -> str:
