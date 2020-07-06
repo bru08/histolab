@@ -3,7 +3,7 @@ from typing import Tuple
 
 import numpy as np
 import sparse
-from scipy.ndimage.morphology import binary_erosion
+import cv2
 
 from .slide import Slide
 from .tile import Tile
@@ -603,10 +603,14 @@ class RestrictedRandomTiler:
         tile_w_mask = np.ceil(tile_w_lvl / avg_adapt_factor).astype(np.int32)
         tile_h_mask = np.ceil(tile_h_lvl / avg_adapt_factor).astype(np.int32)
         self.scaled_tile_size = (tile_w_mask, tile_h_mask)
-        s_elem = np.ones((tile_h_mask, tile_w_mask), dtype=np.bool)
-        safe_mask = binary_erosion(tissue_mask, structure=s_elem)
+        s_elem = np.ones((tile_h_mask, tile_w_mask), dtype=np.uint8)
+        safe_mask = cv2.erode(
+            tissue_mask.astype(np.uint8),
+            structure=s_elem,
+            iterations=1
+            )
 
-        return safe_mask, scalef
+        return safe_mask.astype(np.bool), scalef
 
     def _tile_filename(
         self, tile_wsi_coords: CoordinatePair, tiles_counter: int) -> str:
