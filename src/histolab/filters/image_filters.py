@@ -532,33 +532,6 @@ class OtsuThreshold(object):
     def __repr__(self) -> str:
         return self.__class__.__name__ + "()"
 
-class NWOtsuThreshold(object):
-    """Mask image based on pixel above Otsu threshold.
-    Ignore completely white pixels
-
-    Compute Otsu threshold on image as a NumPy array and return boolean mask
-    based on pixels above this threshold.
-
-    Note that Otsu threshold is expected to work correctly only for grayscale images
-
-    Parameters
-    ----------
-    img : PIL.Image.Image
-        Input image.
-
-    Returns
-    -------
-    np.ndarray
-        Boolean NumPy array where True represents a pixel above Otsu threshold.
-    """
-
-    def __call__(self, img: PIL.Image.Image) -> np.ndarray:
-        return F.otsu_threshold_ignorebg(img)
-
-    def __repr__(self) -> str:
-        return self.__class__.__name__ + "()"
-
-
 class LocalOtsuThreshold(object):
     """Mask image based on local Otsu threshold.
 

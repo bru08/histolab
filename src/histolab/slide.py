@@ -63,6 +63,7 @@ class Slide(object):
     def __init__(self, path: str, processed_path: str) -> None:
         self._path = path
         self._processed_path = processed_path
+        self._check_texture = False
 
     def __repr__(self):
         return (
@@ -176,8 +177,13 @@ class Slide(object):
             Scaling factor from level 0 to the extracted tissue mask size
 
         """
-        thumb, thumb_arr = self._resample(scale_factor=scale_factor)
-        filters_fg = self._strict_fg_mask_filters
+        thumb, _ = self._resample(scale_factor=scale_factor)
+
+        if self._check_texture:
+            filters_fg = self._tissue_texture_filters
+        else:
+            filters_fg = self._strict_fg_mask_filters
+
         thumb_mask = filters_fg(thumb)
         return thumb_mask, scale_factor
 
@@ -440,12 +446,34 @@ class Slide(object):
         filters = imf.Compose(
             [
                 imf.RgbToGrayscale(),
-                imf.NWOtsuThreshold(),
+                imf.OtsuThreshold(),
                 mof.RemoveSmallObjectsRelative(),
                 mof.RemoveSmallHolesRelative(),
             ]
         )
         return filters
+
+    @lazyproperty
+    def _tissue_texture_filters(self) -> imf.Compose:
+        """Return a filters composition to get a binary mask for the foreground
+
+        Returns
+        -------
+        imf.Compose
+            Filters composition
+        """
+        filters = imf.Compose(
+            [
+                imf.RgbToGrayscale(),
+                imf.CannyEdges(),
+                imf.BinaryDilation(3),
+                imf.BinaryErosion(6),
+                mof.RemoveSmallObjectsRelative(),
+                mof.RemoveSmallHolesRelative(),
+            ]
+        )
+        return filters
+    
 
     def _resample(self, scale_factor: int = 32) -> Tuple[PIL.Image.Image, np.array]:
         """Converts a slide to a scaled-down PIL image.

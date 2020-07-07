@@ -585,45 +585,6 @@ def otsu_threshold(
     return threshold_to_mask(image, otsu_thresh, relate)
 
 
-
-def otsu_threshold_ignorebg(
-    img: PIL.Image.Image, relate: Callable[..., bool] = operator.lt
-) -> np.ndarray:
-    """Mask image based on pixel above Otsu threshold.
-
-    Compute Otsu threshold on image as a NumPy array and return boolean mask
-    based on pixels above this threshold.
-
-    Note that Otsu threshold is expected to work correctly only for grayscale images
-
-    Parameters
-    ----------
-    img : PIL.Image.Image
-        Input image.
-    relate : operator, optional
-        Operator to be used to compute the mask from the threshold. Default is
-        operator.lt
-
-    Returns
-    -------
-    np.ndarray
-        Boolean NumPy array where True represents a pixel above Otsu threshold.
-    """
-    if img.mode in ["RGB", "RGBA"]:
-        image = PIL.ImageOps.grayscale(img)
-        warn(
-            "otsu_threshold is expected to work correctly only for grayscale images."
-            "NOTE: the image will be converted to greyscale before applying Otsu"
-            "threshold"
-        )
-    else:
-        image = img
-    arr = np.array(image)
-    arr = arr[arr<254]
-    otsu_thresh = sk_filters.threshold_otsu(arr)
-    return threshold_to_mask(image, otsu_thresh, relate)
-
-
 def filter_entropy(
     img: PIL.Image.Image,
     neighborhood: int = 9,
