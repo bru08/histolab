@@ -35,7 +35,7 @@ import sparse
 from .filters import image_filters as imf
 from .filters import morphological_filters as mof
 from .tile import Tile
-from .types import CoordinatePair, Region
+from .types import CoordinatePair, CoordinateULWH, Region
 from .util import (
     lazyproperty,
     lru_cache,
@@ -220,13 +220,13 @@ class Slide(object):
         tile = Tile(image, coords, level)
         return tile
 
-    def _extract_tile(self, coords: CoordinatePair, level: int) -> Tile:
+    def _extract_tile(self, coords: CoordinateULWH, level: int) -> Tile:
         """Extract a tile of the image at the selected level.
 
         Parameters
         ----------
-        coords : CoordinatePair
-            Coordinates from which to extract the tile.
+        coords : CoordinateCWH
+            Coordinates UL corner at level 0, w, h at level from which to extract the tile.
         level : int
             Level from which to extract the tile.
 
@@ -235,22 +235,10 @@ class Slide(object):
         tile : Tile
             Image containing the selected tile.
         """
-        if not self._are_valid_coords(coords):
-            # OpenSlide doesn't complain if the coordinates for extraction are wrong,
-            # but it returns an odd image.
-            raise ValueError(
-                f"Extraction Coordinates {coords} not valid for slide with dimensions "
-                f"{self.dimensions}"
-            )
-
-
-        h_l = coords.y_br - coords.y_ul
-        w_l = coords.x_br - coords.x_ul
-
         image = self._wsi.read_region(
             location=(coords.x_ul, coords.y_ul),
             level=level,
-            size=(w_l, h_l)
+            size=(coords.w, coords.h)
         )
         tile = Tile(image, coords, level)
         return tile
