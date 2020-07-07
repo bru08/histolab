@@ -440,7 +440,7 @@ class Slide(object):
         filters = imf.Compose(
             [
                 imf.RgbToGrayscale(),
-                imf.OtsuThreshold(),
+                imf.NWOtsuThreshold(),
                 mof.RemoveSmallObjectsRelative(),
                 mof.RemoveSmallHolesRelative(),
             ]
