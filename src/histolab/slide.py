@@ -465,11 +465,11 @@ class Slide(object):
         filters = imf.Compose(
             [
                 imf.RgbToGrayscale(),
-                imf.CannyEdges(),
+                imf.CannyEdges(0,None,None),
                 imf.BinaryDilation(3),
                 imf.BinaryErosion(6),
-                mof.RemoveSmallObjectsRelative(),
-                mof.RemoveSmallHolesRelative(),
+                mof.RemoveSmallObjectsRelative(1e-3),
+                mof.RemoveSmallHolesRelative(1e-3),
             ]
         )
         return filters
