@@ -7,7 +7,7 @@ import cv2
 
 from .slide import Slide
 from .tile import Tile
-from .types import CoordinatePair
+from .types import CoordinatePair, CoordinateULWH
 from .util import (
     lru_cache,
     region_coordinates,
@@ -536,9 +536,7 @@ class RestrictedRandomTiler:
 
         np.random.seed(self.seed)
 
-        self.safe_mask, scalef = self.refine_safe_mask(slide, self.check_artifacts)
-
-        self.adaptation_factor = scalef
+        self.safe_mask, self.adapt = self.refine_safe_mask(slide, self.check_artifacts)
         self.safe_centers = np.argwhere(self.safe_mask)
         random_tiles = self._random_tiles_generator(slide)
 
@@ -569,13 +567,9 @@ class RestrictedRandomTiler:
         yc = self.safe_centers[center_id, 0]
         self.extracted_centers_mask.append([xc, yc])
 
-        x_ul_lvl = int(xc * self.adaptation_factor) - tile_w_lvl // 2
-        y_ul_lvl = int(yc * self.adaptation_factor) - tile_h_lvl // 2
-        x_br_lvl = x_ul_lvl + tile_w_lvl
-        y_br_lvl = y_ul_lvl + tile_h_lvl
-
-        tile_wsi_coords = CoordinatePair(x_ul_lvl, y_ul_lvl, x_br_lvl, y_br_lvl)
-
+        x_ul_lv0 = int(xc * self.adapt) - tile_w_lvl // 2
+        y_ul_lv0 = int(yc * self.adapt) - tile_h_lvl // 2
+        tile_wsi_coords = CoordinateULWH(x_ul_lv0, y_ul_lv0, tile_w_lvl, tile_h_lvl)
         return tile_wsi_coords
 
     def refine_safe_mask(self, slide: Slide, check_art: bool) -> np.ndarray:
@@ -598,15 +592,17 @@ class RestrictedRandomTiler:
         h_m, w_m = tissue_mask.shape
         w_lvl, h_lvl = slide.level_dimensions(self.level)
         
-        avg_adapt_factor = .5 * (h_lvl / h_m + w_lvl / w_m)
-        assert np.abs(h_lvl / h_m - w_lvl / w_m) < 0.01
-        tile_w_mask = np.ceil(tile_w_lvl / avg_adapt_factor).astype(np.int32)
-        tile_h_mask = np.ceil(tile_h_lvl / avg_adapt_factor).astype(np.int32)
+        h_adapt = h_lvl / h_m
+        w_adapt = w_lvl / w_m
+
+        tile_w_mask = np.ceil(tile_w_lvl / w_adapt).astype(np.int32)
+        tile_h_mask = np.ceil(tile_h_lvl / h_adapt).astype(np.int32)
         self.scaled_tile_size = (tile_w_mask, tile_h_mask)
-        s_elem = np.ones((tile_h_mask, tile_w_mask), dtype=np.uint8)
+
+        s_elem = np.ones(self.scaled_tile_size, dtype=np.uint8)
         safe_mask = cv2.erode(
             tissue_mask.astype(np.uint8),
-            structure=s_elem,
+            kernel=s_elem,
             iterations=1
             )
 
@@ -668,7 +664,7 @@ class RestrictedRandomTiler:
 
             tile_wsi_coords = self._random_tile_coordinates(slide)
             try:
-                tile = slide.extract_tile(tile_wsi_coords, self.level)
+                tile = slide._extract_tile(tile_wsi_coords, self.level)
             except ValueError:
                 iteration -= 1
                 continue
