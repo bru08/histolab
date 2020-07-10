@@ -502,6 +502,9 @@ class RestrictedRandomTiler:
         check_tissue: bool = True,
         check_artifacts: bool = True,
         max_iter=None,
+        tissue_localizer=None,
+        tile_checker=None,
+        scale_factor = 32
     ):
 
         self.tile_size = tile_size
@@ -510,6 +513,9 @@ class RestrictedRandomTiler:
         self.seed = seed
         self.prefix = prefix
         self.suffix = suffix
+        self.tissue_localizer = tissue_localizer
+        self.tile_checker = tile_checker
+        self.scale_factor = scale_factor
         self.safe_mask = None
         self.adaptation_factor = None
         self.scaled_tile_size = None
@@ -582,7 +588,13 @@ class RestrictedRandomTiler:
         ------
         safe_mask: np.ndarray
         """
-        tissue_mask, scalef = slide.tissue_mask
+        if self.tissue_localizer is not None:
+            scalef = self.scale_factor
+            scaled_img, _ = slide._resample(scalef)
+            tissue_mask = self.tissue_localizer(scaled_img)
+        else:
+            tissue_mask, scalef = slide.tissue_mask
+
         if check_art:
             art_mask = self.art_filter(slide._resample()[0])
             assert tissue_mask.shape == art_mask.shape
@@ -661,15 +673,22 @@ class RestrictedRandomTiler:
         iteration = valid_tile_counter = 0
 
         while True:
-
             tile_wsi_coords = self._random_tile_coordinates(slide)
+            tile_status = False
             try:
                 tile = slide._extract_tile(tile_wsi_coords, self.level)
             except ValueError:
                 iteration -= 1
                 continue
-
-            if not self.check_tissue or tile.has_enough_tissue():
+     
+            if not self.check_tissue:
+                tile_status = True
+            elif self.tile_checker is not None:
+                tile_status = self.tile_checker(tile.image)
+            else:
+                tile_status =  tile.has_enough_tissue():
+            
+            if tile_status:
                 yield tile, tile_wsi_coords
                 valid_tile_counter += 1
             iteration += 1
