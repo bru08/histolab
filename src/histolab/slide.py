@@ -468,6 +468,7 @@ class Slide(object):
                 imf.CannyEdges(0,None,None),
                 mof.BinaryDilation(3),
                 mof.BinaryErosion(6),
+                mof.BinaryClosing(3, 5),
                 mof.RemoveSmallObjectsRelative(1e-3),
                 mof.RemoveSmallHolesRelative(1e-3),
             ]
