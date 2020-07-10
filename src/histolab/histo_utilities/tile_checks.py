@@ -85,27 +85,27 @@ class FindTileMarker:
     
     def __init__(
         self, 
-        hue1: float = 0.1, hue2: float = 0.9,
+        hue1: float = 0.1, hue2: float = 0.85,
         sat_min: float = 0.05, sat_max: float = 0.5,
         bg_saturation_th=None
         ):
     
             self.h1 = hue1
             self.h2 = hue2
-            self.max_sat = sat_min
-            self.min_sat = sat_max
+            self.min_sat = sat_min
+            self.max_sat = sat_max
             self.bg_sat = bg_saturation_th if bg_saturation_th else self.min_sat
 
     def background_and_marker(self, image: PIL.Image.Image) -> Tuple[float, float]:
         hsv_array = np.array(image.convert("HSV")) / 255
         hue, sat = hsv_array[:, :, :2].reshape(-1, 2).T
-        hue_condition = (hue < self.h1) & (hue > self.h2)
+        hue_condition = (hue < self.h1) | (hue > self.h2)
         sat_condition = (sat > self.min_sat) & (sat < self.max_sat)
         count_marker = np.sum(hue_condition & sat_condition)
         count_bg = np.sum(sat < self.bg_sat)
-        marker_pc = 1e2 * count_marker / (hue.shape[0] - count_bg)
-        bg_pc = 1e2 * count_bg / hue.shape[0]
-        return marker_pc, bg_pc
+        self.marker_pc = 1e2 * count_marker / (hue.shape[0] - count_bg)
+        self.bg_pc = 1e2 * count_bg / hue.shape[0]
+        return self.marker_pc, self.bg_pc
 
     def polar_hs_marker(self, image: PIL.Image.Image):
         image = skimage.transform.rescale(np.array(image), (1/4,1/4,1))
@@ -124,14 +124,16 @@ class FindTileMarker:
         a_space = (np.linspace(self.h2, 1+self.h1) % 1) * 2 * np.pi
         l1 = np.ones_like(a_space) * self.min_sat
         l2 = np.ones_like(a_space) * self.max_sat
+        lr = np.ones_like(a_space) * self.bg_sat
         ax2.plot(a_space, l1, c="orange")
         ax2.plot(a_space, l2, c="orange")
         ax2.plot([a_space[0]] * 2, [self.min_sat, self.max_sat], c="orange")
         ax2.plot([a_space[-1]] * 2, [self.min_sat, self.max_sat], c="orange")
         # ignored central circular area
         ac_space = np.linspace(0, 1) * 2 * np.pi
-        ax2.fill_between(ac_space, np.zeros_like(l2), l2, alpha=0.3, facecolor="red")
-
+        ax2.fill_between(ac_space, np.zeros_like(lr), lr, alpha=0.3, facecolor="red")
+        ax1.set_title(
+            f"Marker: {self.marker_pc:.2f}%, Background:{self.bg_pc:.2f}%")
     def __call__(self, image: PIL.Image.Image) -> float:
         marker_pc, bg_pc = self.background_and_marker(image)
         return marker_pc / bg_pc
