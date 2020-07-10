@@ -686,7 +686,7 @@ class RestrictedRandomTiler:
             elif self.tile_checker is not None:
                 tile_status = self.tile_checker(tile.image)
             else:
-                tile_status =  tile.has_enough_tissue():
+                tile_status =  tile.has_enough_tissue()
             
             if tile_status:
                 yield tile, tile_wsi_coords
