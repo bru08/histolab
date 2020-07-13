@@ -14,8 +14,9 @@ from matplotlib import cm
 from matplotlib import colors
 import cv2
 
-#return the score of a tile having a rgb array, the name of the tile (without extensions) and the directory where saving the H-S plots (Hue-Saturation). 
-#return SCORE that is the percentage of marker in that tile.
+#INPUT: the rgb array, the name of the tile (without extensions) and the directory where saving the H-S plots (Hue-Saturation). 
+#RETURN: SCORE that is the percentage of marker in that tile.
+#        H-S plots of each tile
 
 def scoring(rgb_array,name, H_S_plot_directory):
     ext="png"
@@ -46,7 +47,7 @@ def scoring(rgb_array,name, H_S_plot_directory):
     SCORE=(size/totsize)*100
     return SCORE
 
-    #whitout plotting the H-S diagrams (that are very expensive!)
+    #the same function whitout plotting the H-S diagrams (that are very expensive!)
 
 def scoring_light(rgb_array,name): #without saving H-S plot
     rgb=rgb_array
@@ -64,3 +65,22 @@ def scoring_light(rgb_array,name): #without saving H-S plot
     size=len(x)
     SCORE=(size/totsize)*100
     return SCORE
+
+    #the same function having as input the PIL image
+
+ def scoring_light_PIL(PIL_image,name): #without saving H-S plot
+    rgb = np.asarray(PIL_image)
+    hsv=sk_color.rgb2hsv(rgb)
+    h, s, v = cv2.split(hsv)
+    x=h.flatten()
+    totsize=len(x)
+    y=s.flatten()
+    true=x<0.1
+    x=x[true]
+    y=y[true]
+    true2=y>0.2
+    x=x[true2]
+    y=y[true2]
+    size=len(x)
+    SCORE=(size/totsize)*100
+    return SCORE   
