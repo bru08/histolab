@@ -31,13 +31,20 @@ from PIL import Image
 #return the boolean mask
 #DOESNT' WORK FOR CD_3 DATASET
 
+#n.b: do not use it with PDL_5 slide. 
+##    doesn't work with patient 73 but it seems that we must cut off it, so no problem.
+##some slide are totally deleted, it seems that it is not a bad thing because they lack hematoxylin nuclei (to be better controlled)
+
+#RESULTS ARE IN GOOGLE DRIVE, TO BE CHECK IN A BETTER WAY IF THIS MASK DELETE TOO MUCH
+
 def masks_new (pil_image, name):
+    assert (name!='PDL_5'), print("this function doesn't work for it!")
     arra=np.asarray(pil_image)
     ext="png"
     mask_out, _ = get_tissue_mask(arra, deconvolve_first=True,n_thresholding_steps=1, sigma=1.5, min_size=30)
     mask_out=mask_out.astype(bool)
 
-    if (name=='PDL_3') or (name=='PDL_5') or (name=='PDL_7'):
+    if (name=='PDL_3') or (name=='PDL_7'):
         contr=~mask_out
         arra1=np.array(util.apply_mask_image(arra,contr))
         green_ch=image_filters_functional.green_channel_filter(arra1)
