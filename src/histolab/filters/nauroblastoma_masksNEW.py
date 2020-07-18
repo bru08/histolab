@@ -35,7 +35,7 @@ from PIL import Image
 ##    doesn't work with patient 73 but it seems that we must cut off it, so no problem.
 ##some slide are totally deleted, it seems that it is not a bad thing because they lack hematoxylin nuclei (to be better controlled)
 
-#RESULTS ARE IN GOOGLE DRIVE, TO BE CHECK IN A BETTER WAY IF THIS MASK DELETE TOO MUCH
+#RESULTS ARE IN GOOGLE DRIVE, TO BE CHECK IN A BETTER WAY IF THIS MASKS DELETE TOO MUCH
 
 def masks_new (pil_image, name):
     assert (name!='PDL_5'), print("this function doesn't work for it!")
