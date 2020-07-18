@@ -28,14 +28,15 @@ import matplotlib.pyplot as plt
 from PIL import Image    
 
 #NEW MASKS FOR DATASET PDL_1 AND CD_141 THAT ANALYZE ALSO THE PRESENCE OF NUCLEI AND CUT OFF TISSUE PARTS WITHOUT THEM
-#return the boolean mask
-#DOESNT' WORK FOR CD_3 DATASET
+
+#this function returns the boolean mask
+#               DOESN'T WORK FOR CD_3 DATASET
 
 #n.b: do not use it with PDL_5 slide. 
 ##    doesn't work with patient 73 but it seems that we must cut off it, so no problem.
-##some slide are totally deleted, it seems that it is not a bad thing because they lack hematoxylin nuclei (to be better controlled)
+##some slides are totally deleted, it seems that it is not a bad thing because they lack hematoxylin nuclei (to be better controlled)
 
-#RESULTS ARE IN GOOGLE DRIVE, TO BE CHECK IN A BETTER WAY IF THIS MASKS DELETE TOO MUCH
+#RESULTS ARE IN GOOGLE DRIVE, TO BE CHECKED IN A BETTER WAY IF THESE MASKS DELETE TOO MUCH
 
 def masks_new (pil_image, name):
     assert (name!='PDL_5'), print("this function doesn't work for it!")
@@ -65,7 +66,7 @@ def masks_new (pil_image, name):
 
 #NEW MASKS FOR DATASET CD_3  THAT ANALYZE ALSO THE PRESENCE OF NUCLEI AND CUT OFF TISSUE PARTS WITHOUT THEM
 #COLOR NORMALIZATION
-#return the boolean mask and the rgb normalized np.array
+#returns the boolean mask and the rgb normalized np.array
 
 
 def CD_3_masks_new(pil_image,name):
