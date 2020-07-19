@@ -60,10 +60,10 @@ class Slide(object):
         Path where thumbnails and scaled images will be saved to.
     """
 
-    def __init__(self, path: str, processed_path: str) -> None:
+    def __init__(self, path: str, processed_path: str, tissue_filters = None) -> None:
         self._path = path
         self._processed_path = processed_path
-        self._check_texture = False
+        self._ext_filters = tissue_filters
 
     def __repr__(self):
         return (
@@ -178,13 +178,11 @@ class Slide(object):
 
         """
         thumb, _ = self._resample(scale_factor=scale_factor)
-
-        if self._check_texture:
-            filters_fg = self._tissue_texture_filters
+        if self._ext_filters is not None:
+            filters = self._ext_filters
         else:
-            filters_fg = self._strict_fg_mask_filters
-
-        thumb_mask = filters_fg(thumb)
+            filters = self._main_tissue_areas_mask_filters
+        thumb_mask = filters(thumb)
         return thumb_mask, scale_factor
 
     def extract_tile(self, coords: CoordinatePair, level: int) -> Tile:
@@ -241,6 +239,7 @@ class Slide(object):
         tile : Tile
             Image containing the selected tile.
         """
+        # TODO add validation for coordinates
         image = self._wsi.read_region(
             location=(coords.x_ul, coords.y_ul),
             level=level,
@@ -248,7 +247,6 @@ class Slide(object):
         )
         tile = Tile(image, coords, level)
         return tile
-
 
     @lazyproperty
     def name(self) -> str:
@@ -430,47 +428,6 @@ class Slide(object):
                 mof.BinaryDilation(),
                 mof.RemoveSmallHoles(),
                 mof.RemoveSmallObjects(),
-            ]
-        )
-        return filters
-
-    @lazyproperty
-    def _strict_fg_mask_filters(self) -> imf.Compose:
-        """Return a filters composition to get a binary mask for the foreground
-
-        Returns
-        -------
-        imf.Compose
-            Filters composition
-        """
-        filters = imf.Compose(
-            [
-                imf.RgbToGrayscale(),
-                imf.OtsuThreshold(),
-                mof.RemoveSmallObjectsRelative(),
-                mof.RemoveSmallHolesRelative(),
-            ]
-        )
-        return filters
-
-    @lazyproperty
-    def _tissue_texture_filters(self) -> imf.Compose:
-        """Return a filters composition to get a binary mask for the foreground
-
-        Returns
-        -------
-        imf.Compose
-            Filters composition
-        """
-        filters = imf.Compose(
-            [
-                imf.RgbToGrayscale(),
-                imf.CannyEdges(0,None,None),
-                mof.BinaryDilation(3),
-                mof.BinaryErosion(6),
-                mof.BinaryClosing(3, 5),
-                mof.RemoveSmallObjectsRelative(1e-3),
-                mof.RemoveSmallHolesRelative(1e-3),
             ]
         )
         return filters

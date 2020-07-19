@@ -14,7 +14,7 @@ class TileNuclei:
 
     def __init__(
         self, nuclei_th: int = 5, selem_radius: int = 2,
-        min_area: int=20, max_area: int = 100,
+        min_area: int = 20, max_area: int = 100,
         ):
             # TODO add dependency on magnification power linking expected nuclei size and zoom
             """Define a tile interesting if there are enough nuclei

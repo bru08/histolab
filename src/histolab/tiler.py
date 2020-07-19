@@ -500,19 +500,20 @@ class RestrictedRandomTiler:
         prefix: str = "",
         suffix: str = ".png",
         check_tissue: bool = True,
-        check_artifacts: bool = True,
         max_iter=None,
         tissue_localizer=None,
         tile_checker=None,
-        scale_factor = 32
+        scale_factor=32
     ):
 
         self.tile_size = tile_size
         self.n_tiles = n_tiles
         self.level = level
+        self.max_iter = max_iter
         self.seed = seed
         self.prefix = prefix
         self.suffix = suffix
+        self.check_tissue = check_tissue
         self.tissue_localizer = tissue_localizer
         self.tile_checker = tile_checker
         self.scale_factor = scale_factor
@@ -521,14 +522,9 @@ class RestrictedRandomTiler:
         self.scaled_tile_size = None
         self.safe_centers = None
         self.extracted_centers_mask = []
-        self.max_iter = max_iter
-        self.check_tissue = check_tissue
-        self.check_artifacts = check_artifacts
-        self.art_filter = imf.HSDCFilter()
 
-        if max_iter is None: self.max_iter = 2 * self.n_tiles
-
-
+        if max_iter is None:
+            self.max_iter = 2 * self.n_tiles
 
     def extract(self, slide: Slide):
         """Extract random tiles and save them to disk, following this filename pattern:
@@ -542,7 +538,7 @@ class RestrictedRandomTiler:
 
         np.random.seed(self.seed)
 
-        self.safe_mask, self.adapt = self.refine_safe_mask(slide, self.check_artifacts)
+        self.safe_mask = self.refine_safe_mask(slide)
         self.safe_centers = np.argwhere(self.safe_mask)
         random_tiles = self._random_tiles_generator(slide)
 
@@ -573,8 +569,8 @@ class RestrictedRandomTiler:
         yc = self.safe_centers[center_id, 0]
         self.extracted_centers_mask.append([xc, yc])
 
-        x_ul_lv0 = int(xc * self.adapt) - tile_w_lvl // 2
-        y_ul_lv0 = int(yc * self.adapt) - tile_h_lvl // 2
+        x_ul_lv0 = int(xc * self.scale_factor) - tile_w_lvl // 2
+        y_ul_lv0 = int(yc * self.scale_factor) - tile_h_lvl // 2
         tile_wsi_coords = CoordinateULWH(x_ul_lv0, y_ul_lv0, tile_w_lvl, tile_h_lvl)
         return tile_wsi_coords
 
@@ -589,21 +585,15 @@ class RestrictedRandomTiler:
         safe_mask: np.ndarray
         """
         if self.tissue_localizer is not None:
-            scalef = self.scale_factor
-            scaled_img, _ = slide._resample(scalef)
+            scaled_img, _ = slide._resample(self.scale_factor)
             tissue_mask = self.tissue_localizer(scaled_img)
         else:
-            tissue_mask, scalef = slide.tissue_mask
-
-        if check_art:
-            art_mask = self.art_filter(slide._resample()[0])
-            assert tissue_mask.shape == art_mask.shape
-            tissue_mask = (tissue_mask) & (art_mask)
+            tissue_mask, _ = slide.tissue_mask(self.scale_factor)
 
         tile_w_lvl, tile_h_lvl = self.tile_size
         h_m, w_m = tissue_mask.shape
         w_lvl, h_lvl = slide.level_dimensions(self.level)
-        
+
         h_adapt = h_lvl / h_m
         w_adapt = w_lvl / w_m
 
@@ -618,7 +608,7 @@ class RestrictedRandomTiler:
             iterations=1
             )
 
-        return safe_mask.astype(np.bool), scalef
+        return safe_mask.astype(np.bool)
 
     def _tile_filename(
         self, tile_wsi_coords: CoordinatePair, tiles_counter: int) -> str:
