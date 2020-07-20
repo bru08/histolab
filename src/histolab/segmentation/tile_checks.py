@@ -81,13 +81,13 @@ class TileNuclei:
         return self.__class__.__name__ + "()"
 
 
-class FindTileMarker:
+class TileMarkerScore:
     
     def __init__(
         self, 
         hue1: float = 0.1, hue2: float = 0.85,
         sat_min: float = 0.05, sat_max: float = 0.5,
-        bg_saturation_th=None
+        bg_saturation_th=None, score_th=None
         ):
     
             self.h1 = hue1
@@ -95,6 +95,7 @@ class FindTileMarker:
             self.min_sat = sat_min
             self.max_sat = sat_max
             self.bg_sat = bg_saturation_th if bg_saturation_th else self.min_sat
+            self.score_th = score_th
 
     def background_and_marker(self, image: PIL.Image.Image) -> Tuple[float, float]:
         hsv_array = np.array(image.convert("HSV")) / 255
@@ -103,9 +104,9 @@ class FindTileMarker:
         sat_condition = (sat > self.min_sat) & (sat < self.max_sat)
         count_marker = np.sum(hue_condition & sat_condition)
         count_bg = np.sum(sat < self.bg_sat)
-        self.marker_pc = 1e2 * count_marker / (hue.shape[0] - count_bg)
-        self.bg_pc = 1e2 * count_bg / hue.shape[0]
-        return self.marker_pc, self.bg_pc
+        self.marker_pc = count_marker / (hue.shape[0] - count_bg)
+        self.bg_pc = count_bg / hue.shape[0]
+        return count_marker, (hue.shape[0] - count_bg - count_marker), count_bg
 
     def polar_hs_marker(self, image: PIL.Image.Image):
         image = skimage.transform.rescale(np.array(image), (1/4,1/4,1))
@@ -134,10 +135,14 @@ class FindTileMarker:
         ax2.fill_between(ac_space, np.zeros_like(lr), lr, alpha=0.3, facecolor="red")
         ax1.set_title(
             f"Marker: {self.marker_pc:.2f}%, Background:{self.bg_pc:.2f}%")
+
     def __call__(self, image: PIL.Image.Image) -> float:
-        marker_pc, bg_pc = self.background_and_marker(image)
-        return marker_pc / bg_pc
-    
+        marker, tissue, bg = self.background_and_marker(image)
+        score = marker / (tissue +  bg + marker)
+        if self.score_th is not None:
+            return score > self.score_th
+        else:
+            return score
+
     def __repr__(self) -> str:
         return self.__class__.__name__ + "()"
-

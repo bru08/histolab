@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from typing import Tuple
+import logging
 
 import numpy as np
 import sparse
@@ -540,6 +541,10 @@ class RestrictedRandomTiler:
 
         self.safe_mask = self.refine_safe_mask(slide)
         self.safe_centers = np.argwhere(self.safe_mask)
+        if len(self.safe_centers) == 0:
+            with open("tiler_log.txt", "a+") as f:
+                f.write(f"Slide {Slide.name} have no extraction points.\n")
+
         random_tiles = self._random_tiles_generator(slide)
 
         tiles_counter = 0
