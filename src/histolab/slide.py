@@ -31,6 +31,7 @@ import numpy as np
 import openslide
 import PIL
 import sparse
+import matplotlib.pyplot as plt
 
 from .filters import image_filters as imf
 from .filters import morphological_filters as mof

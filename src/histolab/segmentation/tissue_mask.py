@@ -6,6 +6,7 @@ import numpy as np
 import PIL
 from sklearn import cluster
 import hdbscan
+import matplotlib.pyplot as plt
 
 from ..filters import image_filters as imf
 from ..filters import morphological_filters as mof
@@ -58,9 +59,9 @@ class HSDCFilter:
     def refine_mask(mask):
         msk = np.copy(mask)
         
-        filters = Compose([
-            RemoveSmallHolesRelative(),
-            RemoveSmallObjectsRelative(),
+        filters = imf.Compose([
+            mof.RemoveSmallHolesRelative(),
+            mof.RemoveSmallObjectsRelative(),
         ])
 
         return filters(msk)
@@ -125,12 +126,12 @@ class HSDCFilter:
     
     @staticmethod
     def bg_segmentation_mask(image: PIL.Image.Image) -> np.array:
-        filters = Compose(
+        filters = imf.Compose(
             [
-                RgbToGrayscale(),
-                OtsuThreshold(),
-                RemoveSmallObjectsRelative(),
-                RemoveSmallHolesRelative(),
+                imf.RgbToGrayscale(),
+                imf.OtsuThreshold(),
+                mof.RemoveSmallObjectsRelative(),
+                mof.RemoveSmallHolesRelative(),
             ]
         )
         return filters(image)

@@ -579,7 +579,7 @@ class RestrictedRandomTiler:
         tile_wsi_coords = CoordinateULWH(x_ul_lv0, y_ul_lv0, tile_w_lvl, tile_h_lvl)
         return tile_wsi_coords
 
-    def refine_safe_mask(self, slide: Slide, check_art: bool) -> np.ndarray:
+    def refine_safe_mask(self, slide: Slide) -> np.ndarray:
         """Refine mask to extract tile only from tissue region
         Get mask size and target elvel size, adapt the desired tile size to the
         rescaled quivalent in the mask, perform binary_erosion and return the
@@ -593,7 +593,7 @@ class RestrictedRandomTiler:
             scaled_img, _ = slide._resample(self.scale_factor)
             tissue_mask = self.tissue_localizer(scaled_img)
         else:
-            tissue_mask, _ = slide.tissue_mask(self.scale_factor)
+            tissue_mask, _ = slide.tissue_mask  # TODO how to specify scale factor
 
         tile_w_lvl, tile_h_lvl = self.tile_size
         h_m, w_m = tissue_mask.shape
@@ -613,6 +613,7 @@ class RestrictedRandomTiler:
             iterations=1
             )
 
+        logging.debug("Refined mask (erosion) is GO")
         return safe_mask.astype(np.bool)
 
     def _tile_filename(
@@ -672,8 +673,10 @@ class RestrictedRandomTiler:
             tile_status = False
             try:
                 tile = slide._extract_tile(tile_wsi_coords, self.level)
+
             except ValueError:
                 iteration -= 1
+                logging.debug("There was a problem extracting a tile")
                 continue
      
             if not self.check_tissue:
