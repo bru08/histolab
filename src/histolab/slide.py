@@ -58,9 +58,10 @@ class Slide:
         Path where thumbnails and scaled images will be saved to.
     """
 
-    def __init__(self, path: str, processed_path: str) -> None:
+    def __init__(self, path: str, processed_path: str, slide_filters: str = "color") -> None:
         self._path = path
         self._processed_path = processed_path
+        self.slide_filters = slide_filters
 
     def __repr__(self):
         return (
@@ -93,6 +94,26 @@ class Slide:
             self._thumbnail_size, biggest_region_coordinates
         )
         return thumb_bbox_mask
+
+    @lazyproperty
+    @lru_cache(maxsize=100)
+    def tissue_mask(self) -> np.ndarray:
+        """Return the thumbnail binary mask of the tissue area.
+
+        Returns
+        -------
+        mask: np.ndarray
+            Binary mask of tissue area. The dimensions are
+            those of the thumbnail.
+        """
+        thumb = self._resample()[0]
+        if self.slide_filters == "texture":
+            filters = FiltersComposition(Slide).tissue_texture_filters
+        else:
+            filters = FiltersComposition(Slide).tissue_mask_filters
+        thumb_mask = filters(thumb)
+        return thumb_mask
+    
 
     @lazyproperty
     def dimensions(self) -> Tuple[int, int]:

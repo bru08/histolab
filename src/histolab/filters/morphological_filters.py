@@ -277,3 +277,69 @@ class WhiteTopHat:
 
     def __call__(self, np_mask: np.ndarray) -> np.ndarray:
         return skimage.morphology.white_tophat(np_mask, self.structure)
+
+
+class RemoveSmallObjectsRelative:
+    """Remove objects smaller than the specified size.
+    If avoid_overmask is True, this function can recursively call itself with
+    progressively halved minimum size objects to avoid removing too many
+    objects in the mask.
+    Parameters
+    ----------
+    np_img : np.ndarray (arbitrary shape, int or bool type)
+        Input mask
+    min_size : int, optional
+        Minimum size of small object to remove. Default is 1e-3 of image pixels
+    avoid_overmask : bool, optional (default is True)
+        If True, avoid masking above the overmask_thresh percentage.
+    overmask_thresh : int, optional (default is 95)
+        If avoid_overmask is True, avoid masking above this threshold percentage value.
+    Returns
+    -------
+    np.ndarray
+        Mask with small objects filtered out
+    """
+
+    def __init__(
+        self,
+        min_prop: float = 1e-3,
+        avoid_overmask: bool = True,
+        overmask_thresh: int = 95,
+    ):
+        self.min_prop = min_prop
+        self.avoid_overmask = avoid_overmask
+        self.overmask_thresh = overmask_thresh
+
+    def __call__(self, np_img) -> np.ndarray:
+        min_size = int(self.min_prop * np_img.size)
+        return F.remove_small_objects(
+            np_img, min_size, self.avoid_overmask, self.overmask_thresh
+        )
+
+    def __repr__(self):
+        return self.__class__.__name__ + "()"
+
+
+class RemoveSmallHolesRelative:
+    """Remove holes smaller than a specified relative size.
+    Parameters
+    ----------
+    np_img : np.ndarray (arbitrary shape, int or bool type)
+        Input mask
+    area_threshold: int, optional (default is 1e-4 of image pixels)
+        Remove small holes below this size.
+    Returns
+    -------
+    np.ndarray
+        Mask with small holes filtered out
+    """
+
+    def __init__(self, area_threshold_prop: float = 1e-4):
+        self.area_threshold_prop = area_threshold_prop
+
+    def __call__(self, np_mask) -> np.ndarray:
+        area_threshold = int(np_mask.size * self.area_threshold_prop)
+        return skimage.morphology.remove_small_holes(np_mask, area_threshold)
+
+    def __repr__(self):
+        return self.__class__.__name__ + "()"

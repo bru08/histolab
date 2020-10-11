@@ -68,6 +68,27 @@ class _SlideFiltersComposition(FiltersComposition):
                 mof.RemoveSmallObjects(),
             ]
         )
+    
+    @lazyproperty
+    def tissue_texture_filters(self) -> imf.Compose:
+        """Return a filters composition to get a binary mask to estimate tissue in a slide.
+
+        Returns
+        -------
+        imf.Compose
+            Filters composition
+        """
+        return imf.Compose(
+        [
+            imf.RgbToGrayscale(),
+            imf.CannyEdges(0, None, None),
+            mof.BinaryDilation(3),
+            mof.BinaryErosion(6),
+            mof.BinaryClosing(3, 5),
+            mof.RemoveSmallObjectsRelative(1e-3),
+            mof.RemoveSmallHolesRelative(1e-5),
+        ]
+    )
 
 
 class _TileFiltersComposition(FiltersComposition):
