@@ -260,6 +260,66 @@ class GridTiler(Tiler):
                 bbox_coordinates, slide
             )
 
+    def gross_tiles_count(self, slide: Slide) -> int:
+        """
+        Count the element in the grid coordinate generator
+        
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which to extract the tiles
+
+        Return
+        -------
+        n_tiles
+            maximum possible number of tiles to be extracted from the slide
+        """
+        return sum(1 for _ in self._grid_coordinates_generator(slide))
+
+    def net_tiles_count(self, slide: Slide) -> int:
+        """
+        Count the element in the grid tiles generator
+        (slower as it may have to apply operations on images)
+        
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which to extract the tiles
+
+        Return
+        -------
+        n_tiles
+            maximum possible number of tiles to be extracted from the slide
+        """
+        return sum(1 for _ in self._grid_tiles_generator(slide))
+
+    def tissue_mask_tiles_count(self, slide: Slide) -> int:
+        """
+        Count the element in the grid coordinate generator
+        
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which to extract the tiles
+
+        Return
+        -------
+        n_tiles
+            maximum possible number of tiles to be extracted from the slide
+        """
+        tissue_mask = slide.tissue_mask
+        counter = 0
+        for x in self._grid_coordinates_generator(slide):
+            x = scale_coordinates(
+                x,
+                slide.dimensions,
+                tissue_mask.shape[:2]
+            )
+            if np.mean(tissue_mask[x.y_ul:x.y_br, x.x_ul:x.x_br]) > .8:
+                counter += 1
+        return counter
+
+
     def _grid_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair]:
         """Generator of tiles arranged in a grid.
 
@@ -319,6 +379,38 @@ class GridTiler(Tiler):
         return (bbox_coordinates.x_br - bbox_coordinates.x_ul) // (
             self.tile_size[0] - self.pixel_overlap
         )
+
+    def extraction_plot(self, slide: Slide, tiles_frac: float = 0.2):
+        """Generate diagnostic plot to visualize tiles to be extracted
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which to extract the tiles
+        """
+        grid_coordinates_generator = self._grid_coordinates_generator(slide)
+        thumb = np.copy(slide._resample()[1])
+        thumb_mask = slide.tissue_mask
+
+        #idx_list = np.random.choice(self.gross_tiles_count(slide), size=n_tiles)
+        for i, x in enumerate(grid_coordinates_generator):
+
+            x = scale_coordinates(
+                x,
+                slide.dimensions,
+                thumb.shape[:2]
+            )
+            l_width = 1 # max(1, ((x[2]-x[1])//(10)))
+            if np.mean(thumb_mask[x[0]:x[2], x[1]:x[3]]) > .5:
+                if np.random.rand(1) < tiles_frac:
+                    # left margin
+                    thumb[x[0]:x[2], x[1]:x[1]+l_width,:] = (0.,255.,0.)
+                    # # top margin
+                    thumb[x[0]-l_width:x[0],x[1]:x[3],:] = (0.,255,0.)
+                    # #right margin
+                    thumb[x[0]:x[2], x[3]:x[3]+l_width,:] = (0.,255.,0.)
+                    # # bottom margin
+                    thumb[x[2]-l_width:x[2],x[1]:x[3],:] = (0.,255,0.)
+        return thumb
 
 
 class RandomTiler(Tiler):
