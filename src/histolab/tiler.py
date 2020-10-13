@@ -121,6 +121,12 @@ class GridTiler(Tiler):
         Prefix to be added to the tile filename. Default is an empty string.
     suffix : str, optional
         Suffix to be added to the tile filename. Default is '.png'
+    partial: float, optional
+        Fraction of the grid tiles that will be extracted choosing randomly from the available 
+        tiles in the grid
+    maximum: maximum number of tiles that will be extracted regardless the number of tiles
+        computed with the partial parameter 
+
     """
 
     def __init__(
@@ -131,6 +137,8 @@ class GridTiler(Tiler):
         pixel_overlap: int = 0,
         prefix: str = "",
         suffix: str = ".png",
+        partial: float = 1,
+        maximum: int = 100
     ):
         self.tile_size = tile_size
         self.level = level
@@ -138,6 +146,8 @@ class GridTiler(Tiler):
         self.pixel_overlap = pixel_overlap
         self.prefix = prefix
         self.suffix = suffix
+        self.partial = partial
+        self.maximum = maximum
 
     def extract(self, slide: Slide):
         """Extract tiles arranged in a grid and save them to disk, following this
@@ -154,8 +164,16 @@ class GridTiler(Tiler):
                 f"Level {self.level} not available. Number of available levels: "
                 f"{len(slide.levels)}"
             )
-
-        grid_tiles = self._grid_tiles_generator(slide)
+        if not (0 <= self.partial <=1 ):
+             raise ValueError(f"The partial parameter must be between 0 and 1, current value: {self.partial}")
+        
+        if self.maximum > self.gross_tiles_count(slide):
+             raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles {self.gross_tiles_count(slide)}.")
+        
+        if self.partial == 1:
+            grid_tiles = self._grid_all_tiles_generator(slide)
+        else:
+            grid_tiles = self._grid_partial_tiles_generator(slide)
 
         tiles_counter = 0
 
@@ -319,9 +337,8 @@ class GridTiler(Tiler):
                 counter += 1
         return counter
 
-
-    def _grid_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair]:
-        """Generator of tiles arranged in a grid.
+    def _grid_all_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair]: 
+        """Generator of the possible tiles arranged in a grid
 
         Parameters
         ----------
@@ -335,7 +352,7 @@ class GridTiler(Tiler):
         CoordinatePair
             Coordinates of the slide at level 0 from which the tile has been extracted
         """
-
+            #create a new function
         grid_coordinates_generator = self._grid_coordinates_generator(slide)
         for coords in grid_coordinates_generator:
             try:
@@ -346,6 +363,80 @@ class GridTiler(Tiler):
             if not self.check_tissue or tile.has_enough_tissue():
                 yield tile, coords
 
+    def partial_grid_ntiles(self, slide: Slide):
+        """Return the target number of tiles in output
+
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which to extract the tiles
+
+        Return
+        -------
+        n_tiles_target
+           int
+        """
+        if int(self.gross_tiles_count(slide) * self.partial) < self.maximum:
+            n_tiles_target = int(self.gross_tiles_count(slide) * self.partial)
+        else:
+            n_tiles_target = self.maximum
+        return n_tiles_target
+
+    def _grid_partial_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair]: 
+        """
+        Generator of a fraction of all the possible valid tiles arranged in a grid. 
+        The fraction is defined by 'self.partial', and the tiles are chosen 
+        randomly among the possible tiles. 
+        Whether the number of expected tiles would be greater than self.maximum, the target 
+        number of tiles will be self.maximum. 
+        Let's note that the tiles could be in minor number than what expected if the number 
+        of valid tiles are minor then the target number of tiles. 
+
+        
+        Parameters
+        ----------
+        slide : Slide
+            Slide from which to extract the tiles
+
+        Yields
+        -------
+        Tile
+            Extracted tile
+        CoordinatePair
+            Coordinates of the slide at level 0 from which the tile has been extracted
+        """
+            #define the maximum target number of tiles
+        n_t_target = self.partial_grid_ntiles(slide)
+        #initialize the possible index among the ones counted in the mask
+        possible_ind =  np.arange(0, self.gross_tiles_count(slide), 1)
+        n_t_out= 0
+        while possible_ind.size > 0 and n_t_out < n_t_target: 
+            n_ext = n_t_target - n_t_out
+
+            if possible_ind.size > n_ext:
+                random_ind = np.random.choice(possible_ind, n_ext, replace=False)
+            else:
+                #if I don't have anymore enough possible index respect to the expected number
+                #of tiles, it doesn't make sense the random extraction:
+                random_ind = possible_ind
+
+            for i,coords in enumerate(self._grid_coordinates_generator(slide)):
+                if n_t_out >= n_t_target:
+                    break
+                if i in random_ind:
+                    try:
+                        tile = slide.extract_tile(coords, self.level)
+                    except ValueError:
+                        continue
+                    if not self.check_tissue or tile.has_enough_tissue():
+                        n_t_out=n_t_out + 1                           
+                        yield tile, coords   
+                #update the possible index, erasing what I have already tried                             
+                possible_ind = np.setdiff1d(possible_ind,random_ind)
+        if n_t_out < n_t_target:
+            print(f"Warning: the number of output tiles is {n_t_out}, minor than the target tiles number {n_t_target}" )
+                    
+                
     def _n_tiles_column(self, bbox_coordinates: CoordinatePair) -> int:
         """Return the number of tiles which can be extracted in a column.
 
@@ -380,38 +471,46 @@ class GridTiler(Tiler):
             self.tile_size[0] - self.pixel_overlap
         )
 
-    def extraction_plot(self, slide: Slide, tiles_frac: float = 0.2):
+    def extraction_plot(self, slide: Slide):
         """Generate diagnostic plot to visualize tiles to be extracted
         Parameters
         ----------
         slide : Slide
             Slide from which to extract the tiles
         """
-        grid_coordinates_generator = self._grid_coordinates_generator(slide)
+        if self.level not in slide.levels:
+            raise LevelError(
+                f"Level {self.level} not available. Number of available levels: "
+                f"{len(slide.levels)}"
+            )
+        if not (0 <= self.partial <=1 ):
+             raise ValueError(f"The partial parameter must be between 0 and 1, current value: {self.partial}")
+        
+        if self.maximum > self.gross_tiles_count(slide):
+             raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles {self.gross_tiles_count(slide)}.")
+        
+        if self.partial == 1:
+            grid_tiles = self._grid_all_tiles_generator(slide)
+        else:
+            grid_tiles = self._grid_partial_tiles_generator(slide)
+        
         thumb = np.copy(slide._resample()[1])
-        thumb_mask = slide.tissue_mask
-
-        #idx_list = np.random.choice(self.gross_tiles_count(slide), size=n_tiles)
-        for i, x in enumerate(grid_coordinates_generator):
-
+        for (_, coord) in grid_tiles:
             x = scale_coordinates(
-                x,
+                coord,
                 slide.dimensions,
                 thumb.shape[:2]
             )
-            l_width = 1 # max(1, ((x[2]-x[1])//(10)))
-            if np.mean(thumb_mask[x[0]:x[2], x[1]:x[3]]) > .5:
-                if np.random.rand(1) < tiles_frac:
-                    # left margin
-                    thumb[x[0]:x[2], x[1]:x[1]+l_width,:] = (0.,255.,0.)
-                    # # top margin
-                    thumb[x[0]-l_width:x[0],x[1]:x[3],:] = (0.,255,0.)
-                    # #right margin
-                    thumb[x[0]:x[2], x[3]:x[3]+l_width,:] = (0.,255.,0.)
-                    # # bottom margin
-                    thumb[x[2]-l_width:x[2],x[1]:x[3],:] = (0.,255,0.)
+            l_width = 3 # max(1, ((x[2]-x[1])//(10)))                           
+            # left margin
+            thumb[x[0]:x[2], x[1]:x[1]+l_width,:] = (0.,0.,0.)
+            # # top margin
+            thumb[x[0]-l_width:x[0],x[1]:x[3],:] = (0.,0,0.)
+            # #right margin
+            thumb[x[0]:x[2], x[3]:x[3]+l_width,:] = (0.,0.,0.)
+            # # bottom margin
+            thumb[x[2]-l_width:x[2],x[1]:x[3],:] = (0.,0,0.)
         return thumb
-
 
 class RandomTiler(Tiler):
     """Extractor of random tiles from a Slide, at the given level, with the given size.
