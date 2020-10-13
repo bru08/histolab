@@ -84,7 +84,7 @@ class Tiler(Protocol):
             0-level coordinates of the slide the tile has been extracted from.
         tiles_counter : int
             Counter of extracted tiles.
-        ind_grid : int
+        ind_grid : int, optional
             If the tile is extracted from a grid arrangment, is the index of the extracted
             tile among all the possible grid-tiles 
 
@@ -92,7 +92,7 @@ class Tiler(Protocol):
         -------
         str
             Tile filename, according to the format
-            `{prefix}tile_{tiles_counter}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}"
+            `{prefix}tile_{tiles_counter}_gridtile_{ind_grid}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}"
             "-{y_br_wsi}{suffix}`
         """
 
@@ -154,6 +154,7 @@ class GridTiler(Tiler):
         self.suffix = suffix
         self.partial = partial
         self.maximum = maximum
+        self.ref_fold= reference_folder
 
     def extract(self, slide: Slide):
         """Extract tiles arranged in a grid and save them to disk, following this
@@ -344,7 +345,7 @@ class GridTiler(Tiler):
                 counter += 1
         return counter
 
-    def _grid_all_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair]: 
+    def _grid_all_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair, int]: 
         """Generator of the possible tiles arranged in a grid
 
         Parameters
@@ -371,6 +372,24 @@ class GridTiler(Tiler):
 
             if not self.check_tissue or tile.has_enough_tissue():
                 yield tile, coords, ind
+    def already_extracted(self):
+        """
+        Returns the grid index tiles already estracted in the self.ref_fold folder
+
+        Parameters
+        ----------
+        self 
+
+        Returns
+        -------
+        numpy.array
+            index tiles already estracted in the self.ref_fold folder
+        """
+        tiles_name=os.listdir(self.ref_fold)
+        present=list()
+        for name in tiles_name:
+            present.append(int(name.split("_")[3]))
+        return np.asarray(present)
     def tissue_mask_tiles_index(self,slide: Slide):
         """
         Compute the possible tiles index of the tiles arranged in a grid, and that are 
@@ -420,7 +439,7 @@ class GridTiler(Tiler):
             n_tiles_target = self.maximum
         return n_tiles_target
 
-    def _grid_partial_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair]: 
+    def _grid_partial_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair, int]: 
         """
         Generator of a fraction of all the possible valid tiles arranged in a grid. 
         The fraction is defined by 'self.partial', and the tiles are chosen 
@@ -443,12 +462,16 @@ class GridTiler(Tiler):
         CoordinatePair
             Coordinates of the slide at level 0 from which the tile has been extracted
         int
-            index of the tile returned among all the possible grid tiles
+            index of the tile returned, referred to all the possible grid tiles in the box-tissue
         """
             #define the maximum target number of tiles
   
         #initialize the possible index among the ones counted in the mask
         possible_ind = self.tissue_mask_tiles_index(slide)
+        if self.ref_fold is not None:
+            to_exclude = self.already_extracted()
+            print(to_exclude)
+            possible_ind = np.setdiff1d(possible_ind, to_exclude)
         n_t_target = self.partial_grid_ntiles(slide)       
         n_t_out= 0
         while possible_ind.size > 0 and n_t_out < n_t_target: 
@@ -536,7 +559,7 @@ class GridTiler(Tiler):
             grid_tiles = self._grid_partial_tiles_generator(slide)
         
         thumb = np.copy(slide._resample()[1])
-        for (_, coord) in grid_tiles:
+        for (_, coord,_) in grid_tiles:
             x = scale_coordinates(
                 coord,
                 slide.dimensions,
