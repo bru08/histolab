@@ -156,7 +156,7 @@ class GridTiler(Tiler):
         self.maximum = maximum
         self.ref_fold= reference_folder
 
-    def extract(self, slide: Slide):
+    def extract(self, slide: Slide, n_tiles: int = -1, method: str = "seq", resume: bool: False):
         """Extract tiles arranged in a grid and save them to disk, following this
         filename pattern:
         `{prefix}tile_{tiles_counter}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}-{y_br_wsi}{suffix}`
@@ -166,6 +166,7 @@ class GridTiler(Tiler):
         slide : Slide
             Slide from which to extract the tiles
         """
+
         if self.level not in slide.levels:
             raise LevelError(
                 f"Level {self.level} not available. Number of available levels: "
@@ -186,7 +187,7 @@ class GridTiler(Tiler):
 
         for tiles_counter, (tile, tile_wsi_coords, ind) in enumerate(grid_tiles):
             tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter, ind)
-                        
+            tile_filename = slide.name + "_" + tile_filename
             full_tile_path = os.path.join(slide.processed_path, "tiles", tile_filename)
             tile.save(full_tile_path)
             print(f"\t Tile {tiles_counter} saved: {tile_filename}")
@@ -271,20 +272,31 @@ class GridTiler(Tiler):
         Iterator[CoordinatePair]
             Iterator of tiles' CoordinatePair
         """
-        box_mask = self.box_mask(slide)
+        # box_mask = self.box_mask(slide)
 
-        regions = regions_from_binary_mask(box_mask)
-        # ----at the moment there is only one region----
-        for region in regions:
-            bbox_coordinates_thumb = region_coordinates(region)
-            bbox_coordinates = scale_coordinates(
-                bbox_coordinates_thumb,
-                box_mask.shape[::-1],
+        # regions = regions_from_binary_mask(box_mask)
+        # # ----at the moment there is only one region----
+        # for region in regions:
+        #     bbox_coordinates_thumb = region_coordinates(region)
+        #     bbox_coordinates = scale_coordinates(
+        #         bbox_coordinates_thumb,
+        #         box_mask.shape[::-1],
+        #         slide.level_dimensions(self.level),
+        #     )
+        #     yield from self._grid_coordinates_from_bbox_coordinates(
+        #         bbox_coordinates, slide
+        #     )
+        tissue_mask = slide.tissue_mask
+        bbox_coordinates = scale_coordinates(
+                CoordinatePair(0, 0, *tissue_mask.shape[::-1]),
+                tissue_mask.shape,
                 slide.level_dimensions(self.level),
             )
-            yield from self._grid_coordinates_from_bbox_coordinates(
-                bbox_coordinates, slide
-            )
+        yield from self._grid_coordinates_from_bbox_coordinates(
+            bbox_coordinates, slide
+        )
+
+
 
     def gross_tiles_count(self, slide: Slide) -> int:
         """
@@ -365,6 +377,7 @@ class GridTiler(Tiler):
             #create a new function
         grid_coordinates_generator = self._grid_coordinates_generator(slide)
         for ind,coords in enumerate(grid_coordinates_generator):
+
             try:
                 tile = slide.extract_tile(coords, self.level)
             except ValueError:
@@ -372,6 +385,7 @@ class GridTiler(Tiler):
 
             if not self.check_tissue or tile.has_enough_tissue():
                 yield tile, coords, ind
+
     def already_extracted(self):
         """
         Returns the grid index tiles already estracted in the self.ref_fold folder
@@ -390,6 +404,7 @@ class GridTiler(Tiler):
         for name in tiles_name:
             present.append(int(name.split("_")[3]))
         return np.asarray(present)
+
     def tissue_mask_tiles_index(self,slide: Slide):
         """
         Compute the possible tiles index of the tiles arranged in a grid, and that are 
