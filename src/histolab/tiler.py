@@ -156,7 +156,7 @@ class GridTiler(Tiler):
         self.maximum = maximum
         self.ref_fold= reference_folder
 
-    def extract(self, slide: Slide, n_tiles: int = -1, method: str = "seq", resume: bool: False):
+    def extract(self, slide: Slide):
         """Extract tiles arranged in a grid and save them to disk, following this
         filename pattern:
         `{prefix}tile_{tiles_counter}_level{level}_{x_ul_wsi}-{y_ul_wsi}-{x_br_wsi}-{y_br_wsi}{suffix}`
