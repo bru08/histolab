@@ -175,7 +175,7 @@ class GridTiler(Tiler):
         if not (0 <= self.partial <=1 ):
              raise ValueError(f"The partial parameter must be between 0 and 1, current value: {self.partial}")
         
-        if self.maximum > self.tissue_mask_tiles_count(slide):
+        if self.maximum > self.tissue_mask_tiles_count(slide) and self.partial!=1:
              raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles,filtered by the mask filter {self.tissue_mask_tiles_count(slide)}.")
         
         if self.partial == 1:
@@ -399,7 +399,8 @@ class GridTiler(Tiler):
         numpy.array
             index tiles already estracted in the self.ref_fold folder
         """
-        tiles_name=os.listdir(self.ref_fold)
+        tiles_name=[x in os.listdir(self.ref_fold) if os.path.splitext(x)[1] == self.suffix]
+        
         present=list()
         for name in tiles_name:
             present.append(int(name.split("_")[3]))
