@@ -211,7 +211,7 @@ class Tile:
 
         return (
             np.mean(image_gray_arr.ravel()) > 0.9
-            and np.std(image_gray_arr.ravel()) < 0.09
+            or np.std(image_gray_arr.ravel()) < 0.09
         )
 
     def _tissue_mask(self, filters: imf.Compose) -> np.ndarray:
