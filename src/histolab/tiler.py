@@ -187,8 +187,9 @@ class GridTiler(Tiler):
 
         for tiles_counter, (tile, tile_wsi_coords, ind) in enumerate(grid_tiles):
             tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter, ind)
-            tile_filename = slide.name + "_" + tile_filename
-            full_tile_path = os.path.join(slide.processed_path, "tiles", tile_filename)
+            #tile_filename = slide.name + "_" + tile_filename
+            #full_tile_path = os.path.join(slide.processed_path, "tiles", tile_filename)
+            full_tile_path = os.path.join(slide.processed_path, tile_filename)
             tile.save(full_tile_path)
             print(f"\t Tile {tiles_counter} saved: {tile_filename}")
 
@@ -272,29 +273,35 @@ class GridTiler(Tiler):
         Iterator[CoordinatePair]
             Iterator of tiles' CoordinatePair
         """
-        # box_mask = self.box_mask(slide)
+        """
+        box_mask = self.box_mask(slide)
 
-        # regions = regions_from_binary_mask(box_mask)
-        # # ----at the moment there is only one region----
-        # for region in regions:
-        #     bbox_coordinates_thumb = region_coordinates(region)
-        #     bbox_coordinates = scale_coordinates(
-        #         bbox_coordinates_thumb,
-        #         box_mask.shape[::-1],
-        #         slide.level_dimensions(self.level),
-        #     )
-        #     yield from self._grid_coordinates_from_bbox_coordinates(
-        #         bbox_coordinates, slide
-        #     )
+        regions = regions_from_binary_mask(box_mask)
+        # ----at the moment there is only one region----
+        for region in regions:
+            bbox_coordinates_thumb = region_coordinates(region)
+            bbox_coordinates = scale_coordinates(
+                bbox_coordinates_thumb,
+                box_mask.shape[::-1],
+                slide.level_dimensions(self.level),
+            )
+            print(bbox_coordinates_thumb)
+        yield from self._grid_coordinates_from_bbox_coordinates(
+                bbox_coordinates, slide
+            )
+        """
         tissue_mask = slide.tissue_mask
         bbox_coordinates = scale_coordinates(
                 CoordinatePair(0, 0, *tissue_mask.shape[::-1]),
-                tissue_mask.shape,
+                tissue_mask.shape[::-1],
                 slide.level_dimensions(self.level),
             )
         yield from self._grid_coordinates_from_bbox_coordinates(
             bbox_coordinates, slide
         )
+        
+
+        
 
 
 
@@ -351,20 +358,23 @@ class GridTiler(Tiler):
             x = scale_coordinates(
                 x,
                 slide.dimensions,
-                tissue_mask.shape[:2]
+                tissue_mask.shape[:2][::-1]
             )
             if np.mean(tissue_mask[x.y_ul:x.y_br, x.x_ul:x.x_br]) > .8:
                 counter += 1
         return counter
 
-    def _grid_all_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair, int]: 
+    def _grid_all_tiles_generator(self, slide: Slide, check: bool = None) -> Tuple[Tile, CoordinatePair, int]: 
         """Generator of the possible tiles arranged in a grid
 
         Parameters
         ----------
         slide : Slide
             Slide from which to extract the tiles
-
+        check : bool
+            If it is set false the self.has_enough_tissue method is ignored. Useful if we 
+            want to plot the extraction_plot for checking which tiles will be extracted without 
+            filtering the not valid tiles
         Yields
         -------
         Tile
@@ -375,6 +385,7 @@ class GridTiler(Tiler):
             index of the tile returned 
         """
             #create a new function
+
         grid_coordinates_generator = self._grid_coordinates_generator(slide)
         for ind,coords in enumerate(grid_coordinates_generator):
 
@@ -382,8 +393,10 @@ class GridTiler(Tiler):
                 tile = slide.extract_tile(coords, self.level)
             except ValueError:
                 continue
-
-            if not self.check_tissue or tile.has_enough_tissue():
+            if check == None or check==True:
+                if not self.check_tissue or tile.has_enough_tissue():
+                    yield tile, coords, ind
+            else:
                 yield tile, coords, ind
 
     def already_extracted(self):
@@ -399,12 +412,18 @@ class GridTiler(Tiler):
         numpy.array
             index tiles already estracted in the self.ref_fold folder
         """
-        tiles_name=[x in os.listdir(self.ref_fold) if os.path.splitext(x)[1] == self.suffix]
-        
+        if not os.path.isdir(self.ref_fold):
+            raise ValueError(f"The reference folder {self.ref_fold} does not exist")
+
+        tiles_index=[int(x.split("_")[4]) for x in os.listdir(self.ref_fold) if os.path.splitext(x)[1] == self.suffix]
+        if len(tiles_index)==0:
+            print(f"Warning: the reference folder {self.ref_fold} is empty" )
+        """
         present=list()
         for name in tiles_name:
             present.append(int(name.split("_")[3]))
-        return np.asarray(present)
+        """
+        return np.asarray(tiles_index)
 
     def tissue_mask_tiles_index(self,slide: Slide):
         """
@@ -428,7 +447,7 @@ class GridTiler(Tiler):
             x = scale_coordinates(
                 x,
                 slide.dimensions,
-                tissue_mask.shape[:2]
+                tissue_mask.shape[:2][::-1]
             )
             if np.mean(tissue_mask[x.y_ul:x.y_br, x.x_ul:x.x_br]) > .8:
                 li_ind.append(i)
@@ -455,7 +474,7 @@ class GridTiler(Tiler):
             n_tiles_target = self.maximum
         return n_tiles_target
 
-    def _grid_partial_tiles_generator(self, slide: Slide) -> Tuple[Tile, CoordinatePair, int]: 
+    def _grid_partial_tiles_generator(self, slide: Slide, check: bool = None) -> Tuple[Tile, CoordinatePair, int]: 
         """
         Generator of a fraction of all the possible valid tiles arranged in a grid. 
         The fraction is defined by 'self.partial', and the tiles are chosen 
@@ -470,6 +489,10 @@ class GridTiler(Tiler):
         ----------
         slide : Slide
             Slide from which to extract the tiles
+        check : bool
+            If it is set false the self.has_enough_tissue method is ignored. Useful if we 
+            want to plot the extraction_plot for checking which tiles will be extracted without 
+            filtering the not valid tiles
 
         Yields
         -------
@@ -480,14 +503,15 @@ class GridTiler(Tiler):
         int
             index of the tile returned, referred to all the possible grid tiles in the box-tissue
         """
-            #define the maximum target number of tiles
-  
+            
         #initialize the possible index among the ones counted in the mask
         possible_ind = self.tissue_mask_tiles_index(slide)
+        print(len(possible_ind))
         if self.ref_fold is not None:
             to_exclude = self.already_extracted()
-            print(to_exclude)
+            print(to_exclude, type(to_exclude))
             possible_ind = np.setdiff1d(possible_ind, to_exclude)
+        print(len(possible_ind))
         n_t_target = self.partial_grid_ntiles(slide)       
         n_t_out= 0
         while possible_ind.size > 0 and n_t_out < n_t_target: 
@@ -500,17 +524,28 @@ class GridTiler(Tiler):
                 #of tiles, it doesn't make sense the random extraction:
                 random_ind = possible_ind
 
-            for i,coords in enumerate(self._grid_coordinates_generator(slide)):
+            for ind,coords in enumerate(self._grid_coordinates_generator(slide)):
                 if n_t_out >= n_t_target:
                     break
-                if i in random_ind:
+                if ind in random_ind:
                     try:
                         tile = slide.extract_tile(coords, self.level)
                     except ValueError:
                         continue
+                    
+                    if check == None or check==True:
+                        if not self.check_tissue or tile.has_enough_tissue():
+                            n_t_out=n_t_out + 1   
+                            yield tile, coords, ind
+                    else:
+                        n_t_out=n_t_out + 1   
+                        yield tile, coords, ind
+                    """
+                    
                     if not self.check_tissue or tile.has_enough_tissue():
                         n_t_out=n_t_out + 1                           
-                        yield tile, coords, i   
+                        yield tile, coords, ind   
+                    """
                 #update the possible index, erasing what I have already tried                             
                 possible_ind = np.setdiff1d(possible_ind,random_ind)
         if n_t_out < n_t_target:
@@ -551,12 +586,16 @@ class GridTiler(Tiler):
             self.tile_size[0] - self.pixel_overlap
         )
 
-    def extraction_plot(self, slide: Slide):
+    def extraction_plot(self, slide: Slide, check_t: bool = None):
         """Generate diagnostic plot to visualize tiles to be extracted
         Parameters
         ----------
         slide : Slide
             Slide from which to extract the tiles
+        check_t : bool
+            If it is set false the self.has_enough_tissue method in the generator is ignored. 
+            Useful if we want to plot the extraction_plot for checking which tiles will be 
+            extracted without filtering the not valid tiles
         """
         if self.level not in slide.levels:
             raise LevelError(
@@ -566,31 +605,34 @@ class GridTiler(Tiler):
         if not (0 <= self.partial <=1 ):
              raise ValueError(f"The partial parameter must be between 0 and 1, current value: {self.partial}")
         
-        if self.maximum > self.gross_tiles_count(slide):
-             raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles {self.gross_tiles_count(slide)}.")
+        if (self.maximum > self.tissue_mask_tiles_count(slide)) and (self.partial!=1):
+            raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles,filtered by the mask filter {self.tissue_mask_tiles_count(slide)}.")
         
         if self.partial == 1:
-            grid_tiles = self._grid_all_tiles_generator(slide)
+            grid_tiles = self._grid_all_tiles_generator(slide, check=check_t)
         else:
-            grid_tiles = self._grid_partial_tiles_generator(slide)
-        
+            grid_tiles = self._grid_partial_tiles_generator(slide, check=check_t )
+ 
+            
         thumb = np.copy(slide._resample()[1])
-        for (_, coord,_) in grid_tiles:
+        for (_, coord, _) in grid_tiles:
             x = scale_coordinates(
                 coord,
                 slide.dimensions,
-                thumb.shape[:2]
+                (thumb.shape[1],
+                thumb.shape[0])
             )
-            l_width = 3 # max(1, ((x[2]-x[1])//(10)))                           
-            # left margin
-            thumb[x[0]:x[2], x[1]:x[1]+l_width,:] = (0.,0.,0.)
+            l_width = 3 # max(1, ((x[2]-x[1])//(10)))   
+            #("CoordinatePair", ("x_ul", "y_ul", "x_br", "y_br")) 
+            thumb[x[1]:x[1]+l_width,x[0]:x[2],:] = (0.,0.,0.)
             # # top margin
-            thumb[x[0]-l_width:x[0],x[1]:x[3],:] = (0.,0,0.)
+            thumb[x[1]:x[3],x[0]-l_width:x[0],:] = (0.,0,0.)
             # #right margin
-            thumb[x[0]:x[2], x[3]:x[3]+l_width,:] = (0.,0.,0.)
+            thumb[x[3]:x[3]+l_width,x[0]:x[2], :] = (0.,0.,0.)
             # # bottom margin
-            thumb[x[2]-l_width:x[2],x[1]:x[3],:] = (0.,0,0.)
+            thumb[x[1]:x[3],x[2]-l_width:x[2],:] = (0.,0,0.)
         return thumb
+    
 
 class RandomTiler(Tiler):
     """Extractor of random tiles from a Slide, at the given level, with the given size.
@@ -658,6 +700,7 @@ class RandomTiler(Tiler):
         for tiles_counter, (tile, tile_wsi_coords) in enumerate(random_tiles):
             tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter)
             tile.save(os.path.join(slide.processed_path, "tiles", tile_filename))
+
             print(f"\t Tile {tiles_counter} saved: {tile_filename}")
         print(f"{tiles_counter+1} Random Tiles have been saved.")
 
@@ -846,7 +889,8 @@ class ScoreTiler(GridTiler):
         for tiles_counter, (score, tile_wsi_coords) in enumerate(highest_score_tiles):
             tile = slide.extract_tile(tile_wsi_coords, self.level)
             tile_filename = self._tile_filename(tile_wsi_coords, tiles_counter)
-            tile.save(os.path.join(slide.processed_path, "tiles", tile_filename))
+            #tile.save(os.path.join(slide.processed_path, "tiles", tile_filename))
+            tile.save(os.path.join(slide.processed_path, tile_filename))
             filenames.append(tile_filename)
             print(f"\t Tile {tiles_counter} - score: {score} saved: {tile_filename}")
 

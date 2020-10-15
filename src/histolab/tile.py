@@ -101,8 +101,11 @@ class Tile:
         if self._is_almost_white:
             return False
 
+        """
         if not self._has_only_some_tissue(near_zero_var_threshold):
+            print("_has_only_some_tissue")
             return False
+        """
 
         if not self._has_tissue_more_than_percent(tissue_percent):
             return False
