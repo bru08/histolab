@@ -384,7 +384,6 @@ class GridTiler(Tiler):
         int
             index of the tile returned 
         """
-            #create a new function
 
         grid_coordinates_generator = self._grid_coordinates_generator(slide)
         for ind,coords in enumerate(grid_coordinates_generator):
@@ -506,12 +505,12 @@ class GridTiler(Tiler):
             
         #initialize the possible index among the ones counted in the mask
         possible_ind = self.tissue_mask_tiles_index(slide)
-        print(len(possible_ind))
+        #print(len(possible_ind))
         if self.ref_fold is not None:
             to_exclude = self.already_extracted()
-            print(to_exclude, type(to_exclude))
+            #print(to_exclude, type(to_exclude))
             possible_ind = np.setdiff1d(possible_ind, to_exclude)
-        print(len(possible_ind))
+        #print(len(possible_ind))
         n_t_target = self.partial_grid_ntiles(slide)       
         n_t_out= 0
         while possible_ind.size > 0 and n_t_out < n_t_target: 
