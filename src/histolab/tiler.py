@@ -175,8 +175,8 @@ class GridTiler(Tiler):
         if not (0 <= self.partial <=1 ):
              raise ValueError(f"The partial parameter must be between 0 and 1, current value: {self.partial}")
         
-        if self.maximum > self.tissue_mask_tiles_count(slide) and self.partial!=1:
-             raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles,filtered by the mask filter {self.tissue_mask_tiles_count(slide)}.")
+        #if self.maximum > self.tissue_mask_tiles_count(slide) and self.partial!=1:
+        #     raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles,filtered by the mask filter {self.tissue_mask_tiles_count(slide)}.")
         
         if self.partial == 1:
             grid_tiles = self._grid_all_tiles_generator(slide)
@@ -604,8 +604,8 @@ class GridTiler(Tiler):
         if not (0 <= self.partial <=1 ):
              raise ValueError(f"The partial parameter must be between 0 and 1, current value: {self.partial}")
         
-        if (self.maximum > self.tissue_mask_tiles_count(slide)) and (self.partial!=1):
-            raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles,filtered by the mask filter {self.tissue_mask_tiles_count(slide)}.")
+        #if (self.maximum > self.tissue_mask_tiles_count(slide)) and (self.partial!=1):
+        #    raise ValueError(f"The maximum number of tiles in output, {self.maximum}, is greater than the maximum number of grid tiles,filtered by the mask filter {self.tissue_mask_tiles_count(slide)}.")
         
         if self.partial == 1:
             grid_tiles = self._grid_all_tiles_generator(slide, check=check_t)
@@ -621,15 +621,16 @@ class GridTiler(Tiler):
                 (thumb.shape[1],
                 thumb.shape[0])
             )
-            l_width = 3 # max(1, ((x[2]-x[1])//(10)))   
+            l_width = 3 # max(1, ((x[2]-x[1])//(10)))
+            border_color =  (0,255,0)  
             #("CoordinatePair", ("x_ul", "y_ul", "x_br", "y_br")) 
-            thumb[x[1]:x[1]+l_width,x[0]:x[2],:] = (0.,0.,0.)
+            thumb[x[1]:x[1]+l_width,x[0]:x[2],:] = border_color
             # # top margin
-            thumb[x[1]:x[3],x[0]-l_width:x[0],:] = (0.,0,0.)
+            thumb[x[1]:x[3],x[0]-l_width:x[0],:] = border_color
             # #right margin
-            thumb[x[3]:x[3]+l_width,x[0]:x[2], :] = (0.,0.,0.)
+            thumb[x[3]:x[3]+l_width,x[0]:x[2], :] = border_color
             # # bottom margin
-            thumb[x[1]:x[3],x[2]-l_width:x[2],:] = (0.,0,0.)
+            thumb[x[1]:x[3],x[2]-l_width:x[2],:] = border_color
         return thumb
     
 
