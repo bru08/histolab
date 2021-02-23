@@ -294,7 +294,7 @@ class GridTiler(Tiler):
         bbox_coordinates = scale_coordinates(
                 CoordinatePair(0, 0, *tissue_mask.shape[::-1]),
                 tissue_mask.shape[::-1],
-                slide.level_dimensions(self.level),
+                slide.level_dimensions(self.level)[::-1],
             )
         yield from self._grid_coordinates_from_bbox_coordinates(
             bbox_coordinates, slide
